@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
+import '../providers/quiz_provider.dart';
 import '../providers/theme_provider.dart';
+import '../l10n/app_localizations.dart';
+import 'app_install_button.dart';
+import 'sweet_alert_dialog.dart';
 
 class WebNavbar extends ConsumerWidget implements PreferredSizeWidget {
   final int currentIndex;
@@ -23,11 +27,11 @@ class WebNavbar extends ConsumerWidget implements PreferredSizeWidget {
     final currentUser = currentUserAsync.valueOrNull;
 
     final navItems = [
-      {'label': 'Home', 'route': '/', 'icon': Icons.home_rounded},
-      {'label': 'My Quizzes', 'route': '/my-quizzes', 'icon': Icons.folder_rounded},
-      {'label': 'Create Quiz', 'route': '/create-quiz', 'icon': Icons.add_circle_outline_rounded},
-      {'label': 'AI Generator', 'route': '/ai-generator', 'icon': Icons.auto_awesome_rounded, 'isSpecial': true},
-      {'label': 'Study Mode', 'route': '/study', 'icon': Icons.school_rounded},
+      {'label': context.tr('nav_home'), 'route': '/', 'icon': Icons.home_rounded},
+      {'label': context.tr('nav_my_quizzes'), 'route': '/my-quizzes', 'icon': Icons.folder_rounded},
+      {'label': context.tr('nav_create_quiz'), 'route': '/create-quiz', 'icon': Icons.add_circle_outline_rounded},
+      {'label': context.tr('nav_ai_generator'), 'route': '/ai-generator', 'icon': Icons.auto_awesome_rounded, 'isSpecial': true},
+      {'label': context.tr('nav_study_mode'), 'route': '/study', 'icon': Icons.school_rounded},
     ];
 
     return Container(
@@ -229,6 +233,8 @@ class WebNavbar extends ConsumerWidget implements PreferredSizeWidget {
               // ── Right Action Controls ───────────────────────────────────
               Row(
                 children: [
+                  const AppInstallButton(),
+
                   // Create Deck Shortcut Button
                   ElevatedButton.icon(
                     onPressed: () => context.go('/create-quiz'),
@@ -274,8 +280,27 @@ class WebNavbar extends ConsumerWidget implements PreferredSizeWidget {
                       if (value == 'profile') {
                         context.go('/profile');
                       } else if (value == 'logout') {
-                        await ref.read(currentUserProvider.notifier).signOut();
-                        if (context.mounted) context.go('/login');
+                        final user = ref.read(currentUserProvider).valueOrNull;
+                        final isGuest = user?.isGuest == true;
+                        final quizzes = isGuest && user != null
+                            ? ref.read(userQuizzesProvider(user.id)).valueOrNull ?? const []
+                            : const [];
+                        final guestWarning = quizzes.isEmpty
+                            ? 'Are you sure you want to exit Guest Mode? Any quizzes you create are only associated with this guest session and will not transfer to a registered account.'
+                            : 'You have created ${quizzes.length} ${quizzes.length == 1 ? 'quiz' : 'quizzes'} in Guest Mode. They are not linked to an account and will not transfer if you exit. Are you sure you want to continue?';
+                        final confirmed = await SweetAlert.showConfirm(
+                          context,
+                          title: isGuest ? 'Exit Guest Mode?' : 'Log Out?',
+                          subtitle: isGuest
+                              ? guestWarning
+                              : 'Are you sure you want to log out of your Studieazy account?',
+                          confirmButtonText: isGuest ? 'Exit Guest Mode' : 'Log Out',
+                          cancelButtonText: 'Stay',
+                        );
+                        if (confirmed == true && context.mounted) {
+                          await ref.read(currentUserProvider.notifier).signOut();
+                          if (context.mounted) context.go('/login');
+                        }
                       }
                     },
                     offset: const Offset(0, 50),

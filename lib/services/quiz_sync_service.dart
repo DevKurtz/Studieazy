@@ -110,6 +110,7 @@ class QuizSyncService {
           operation.payload['quizId'] as String,
           operation.payload['score'] as int,
           operation.payload['totalQuestions'] as int,
+          userId: operation.payload['userId'] as String?,
         );
       default:
         throw UnsupportedError('Unknown pending operation: ${operation.type}');

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/locale_provider.dart';
+import 'l10n/app_localizations.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home/home_screen.dart';
@@ -12,6 +15,9 @@ import 'screens/quiz/quiz_detail_screen.dart';
 import 'screens/study/study_mode_screen.dart';
 import 'screens/study/flashcard_study_screen.dart';
 import 'screens/study/quiz_study_screen.dart';
+import 'screens/study/study_library_screen.dart';
+import 'screens/study/study_material_reader_screen.dart';
+import 'models/study_material_models.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/main_layout.dart';
 import 'screens/ai_quiz/ai_quiz_generator_screen.dart';
@@ -53,16 +59,25 @@ final routerProvider = Provider<GoRouter>((ref) {
       final currentUserAsync = ref.read(currentUserProvider);
       if (currentUserAsync.isLoading) return null;
 
-      final isLoggedIn = currentUserAsync.valueOrNull != null;
+      final currentUser = currentUserAsync.valueOrNull;
       final isAuthRoute =
           state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
 
-      if (!isLoggedIn && !isAuthRoute) {
+      if (currentUser == null && !isAuthRoute) {
         return '/login';
       }
 
-      if (isLoggedIn && isAuthRoute) {
+      // Protect admin routes: Only authenticated users with admin privileges can access /admin
+      if (state.matchedLocation.startsWith('/admin')) {
+        if (currentUser == null || !currentUser.isAdmin) {
+          return '/';
+        }
+      }
+
+      // Only fully registered users are prevented from visiting auth routes.
+      // Guests are allowed to navigate to /register or /login to convert to a permanent account.
+      if (currentUser != null && !currentUser.isGuest && isAuthRoute) {
         return '/';
       }
 
@@ -72,7 +87,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/register',
-        builder: (context, state) => const RegisterScreen(),
+        builder: (context, state) => RegisterScreen(
+          googleSetup: state.extra == true,
+        ),
       ),
       ShellRoute(
         builder: (context, state, child) => MainLayout(child: child),
@@ -95,7 +112,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/study',
+            builder: (context, state) => const StudyLibraryScreen(),
+          ),
+          GoRoute(
+            path: '/study/quizzes',
             builder: (context, state) => const StudyModeScreen(),
+          ),
+          GoRoute(
+            path: '/study/material/:id',
+            builder: (context, state) {
+              final material = state.extra;
+              if (material is! StudyMaterial) return const StudyLibraryScreen();
+              return StudyMaterialReaderScreen(material: material);
+            },
           ),
           GoRoute(
             path: '/study/flashcard/:id',
@@ -136,10 +165,23 @@ class StudieazyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
+    // Watch locale — used to rebuild the delegate with the right language
+    final currentLocale = ref.watch(localeProvider);
 
     return MaterialApp.router(
       title: 'Studieazy',
       debugShowCheckedModeBanner: false,
+      // Always use Locale('en') for Flutter's material library so that
+      // GlobalMaterialLocalizations (no fil/ceb support) never crashes.
+      // Our AppLocalizationsDelegate carries the actual user language.
+      locale: const Locale('en'),
+      supportedLocales: const [Locale('en')],
+      localizationsDelegates: [
+        AppLocalizationsDelegate(currentLocale.languageCode),
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       themeMode: themeMode,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

@@ -68,13 +68,22 @@ class _AiQuizGeneratorScreenState extends ConsumerState<AiQuizGeneratorScreen> w
     if (result != null && result.files.isNotEmpty) {
       final validFiles = <PlatformFile>[];
       final maxBytes = AppConfig.maxUploadBytes;
+      var totalSelectedBytes = _selectedFiles.fold<int>(
+        0,
+        (total, file) => total + file.size,
+      );
       for (final file in result.files) {
-        if (file.bytes != null && file.size <= maxBytes) {
+        if (file.bytes != null &&
+            file.size <= maxBytes &&
+            totalSelectedBytes + file.size <= maxBytes) {
           validFiles.add(file);
+          totalSelectedBytes += file.size;
         } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${file.name} exceeds the 20MB limit.'),
+              content: Text(
+                '${file.name} exceeds the 10MB total AI upload limit.',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -105,6 +114,19 @@ class _AiQuizGeneratorScreenState extends ConsumerState<AiQuizGeneratorScreen> w
           const SnackBar(
             content: Text('AI generation requires internet connection'),
             backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    final user = ref.read(currentUserProvider).valueOrNull;
+    if (user == null || user.isGuest) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('AI generation requires a registered account.'),
+            backgroundColor: Colors.orange,
           ),
         );
       }
@@ -724,7 +746,7 @@ class _AiQuizGeneratorScreenState extends ConsumerState<AiQuizGeneratorScreen> w
             ),
             const SizedBox(height: 32),
             const Text(
-              'AI is reading your document...',
+              'AI is creating your quiz...',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -733,8 +755,21 @@ class _AiQuizGeneratorScreenState extends ConsumerState<AiQuizGeneratorScreen> w
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: const SizedBox(
+                width: 280,
+                height: 8,
+                child: LinearProgressIndicator(
+                  minHeight: 8,
+                  backgroundColor: Color(0x336C63FF),
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B7CFF)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
             Text(
-              'This might take a minute depending on the document size.',
+              'Reading your files and preparing questions. This may take a minute.',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 14,
@@ -870,8 +905,86 @@ class _AiQuizGeneratorScreenState extends ConsumerState<AiQuizGeneratorScreen> w
     );
   }
 
+  Widget _buildGuestLockedState() {
+    return Center(
+      child: _buildGlassCard(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.lock_rounded,
+                size: 48,
+                color: Color(0xFF8B5CF6),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Account Required for AI',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'The AI Quiz Generator is exclusively available for registered accounts. '
+              'Create a free account or sign in to convert lecture notes, slides, and PDFs into quizzes automatically!',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.75),
+                fontSize: 14,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => context.push('/register'),
+                icon: const Icon(Icons.person_add_rounded),
+                label: const Text('Create account'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6C63FF),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () => context.push('/login'),
+                icon: const Icon(Icons.login_rounded, size: 18),
+                label: const Text('Sign in'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(currentUserProvider).valueOrNull;
+    final isGuest = user?.isGuest == true;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -896,15 +1009,17 @@ class _AiQuizGeneratorScreenState extends ConsumerState<AiQuizGeneratorScreen> w
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 500),
-              child: switch (_state) {
-                _GenerationState.initial => _buildInitialState(),
-                _GenerationState.loading => _buildLoadingState(),
-                _GenerationState.success => _buildSuccessState(),
-                _GenerationState.error => _buildErrorState(),
-              },
-            ),
+            child: isGuest
+                ? _buildGuestLockedState()
+                : AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 500),
+                    child: switch (_state) {
+                      _GenerationState.initial => _buildInitialState(),
+                      _GenerationState.loading => _buildLoadingState(),
+                      _GenerationState.success => _buildSuccessState(),
+                      _GenerationState.error => _buildErrorState(),
+                    },
+                  ),
           ),
         ),
       ),

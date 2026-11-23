@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Studieazy - Study Smarter, Ace Exams with Ease</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-dark: #4338CA;
+      --primary-light: #EEF2FF;
+      --secondary: #06B6D4;
+      --accent: #F59E0B;
+      --success: #10B981;
+      --dark: #0F172A;
+      --dark-light: #1E293B;
+      --gray: #64748B;
+      --light-gray: #F8FAFC;
+      --border: #E2E8F0;
+      --white: #FFFFFF;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    body {
+      background-color: #FAFAFD;
+      color: var(--dark);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      color: var(--dark);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Navbar */
+    .navbar {
+      position: sticky;
+      top: 0;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 1000;
+      transition: all 0.3s ease;
+    }
+
+    .nav-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 72px;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .logo-img {
+      height: 40px;
+      width: 40px;
+      border-radius: 10px;
+      object-fit: contain;
+    }
+
+    .brand-name {
+      font-size: 24px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      color: var(--gray);
+      font-weight: 600;
+      font-size: 15px;
+      transition: color 0.2s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--primary);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 14.5px;
+      text-decoration: none;
+      transition: all 0.25s ease;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #6366F1);
+      color: var(--white);
+      box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(79, 70, 229, 0.45);
+    }
+
+    .btn-outline {
+      background: var(--white);
+      color: var(--dark);
+      border: 1.5px solid var(--border);
+    }
+
+    .btn-outline:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .btn-glow {
+      background: linear-gradient(135deg, #10B981, #059669);
+      color: white;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+    }
+
+    /* Hero Section */
+    .hero {
+      position: relative;
+      padding: 90px 0 70px 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.05) 0%, transparent 40%),
+                  radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.07) 0%, transparent 40%);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 48px;
+      align-items: center;
+    }
+
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: var(--primary-light);
+      color: var(--primary);
+      border-radius: 999px;
+      font-size: 13.5px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      border: 1px solid rgba(79, 70, 229, 0.2);
+    }
+
+    .hero-title {
+      font-size: 52px;
+      line-height: 1.15;
+      margin-bottom: 22px;
+      letter-spacing: -1px;
+    }
+
+    .hero-title span {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 18px;
+      color: var(--gray);
+      margin-bottom: 32px;
+      max-width: 540px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 36px;
+    }
+
+    .hero-trust {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      font-size: 13.5px;
+      color: var(--gray);
+      font-weight: 500;
+    }
+
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .trust-item svg {
+      color: var(--success);
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Interactive Flashcard Preview (Hero Graphic) */
+    .card-preview-wrapper {
+      perspective: 1000px;
+    }
+
+    .preview-card {
+      background: var(--white);
+      border-radius: 24px;
+      padding: 30px;
+      box-shadow: 0 25px 50px -12px rgba(79, 70, 229, 0.18), 0 0 0 1px rgba(79, 70, 229, 0.08);
+      position: relative;
+      border: 1px solid var(--border);
+    }
+
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px dashed var(--border);
+    }
+
+    .badge-ai {
+      background: #FEF3C7;
+      color: #B45309;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .progress-bar-container {
+      background: #E2E8F0;
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .progress-bar-fill {
+      width: 65%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      border-radius: 999px;
+    }
+
+    /* Flip Card Animation Box */
+    .flashcard-box {
+      background: linear-gradient(135deg, #1E1B4B, #312E81);
+      border-radius: 18px;
+      padding: 36px 24px;
+      color: white;
+      text-align: center;
+      min-height: 220px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.3s ease;
+    }
+
+    .flashcard-box:hover {
+      transform: scale(1.02);
+    }
+
+    .flashcard-type {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #A5B4FC;
+      margin-bottom: 10px;
+    }
+
+    .flashcard-q {
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+
+    .flashcard-hint {
+      font-size: 12.5px;
+      color: #C7D2FE;
+      font-style: italic;
+    }
+
+    .interactive-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn-action-learn {
+      flex: 1;
+      padding: 10px;
+      background: #FEE2E2;
+      color: #991B1B;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-action-gotit {
+      flex: 1;
+      padding: 10px;
+      background: #D1FAE5;
+      color: #065F46;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+
+    /* Feature Highlights */
+    .section {
+      padding: 85px 0;
+    }
+
+    .section-header {
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto 56px auto;
+    }
+
+    .section-tag {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 10px;
+      display: inline-block;
+    }
+
+    .section-title {
+      font-size: 38px;
+      line-height: 1.25;
+      margin-bottom: 16px;
+      letter-spacing: -0.5px;
+    }
+
+    .section-subtitle {
+      font-size: 16.5px;
+      color: var(--gray);
+    }
+
+    /* Feature Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+    }
+
+    .feature-card {
+      background: var(--white);
+      padding: 32px 28px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-6px);
+      box-shadow: var(--shadow-xl);
+      border-color: rgba(79, 70, 229, 0.3);
+    }
+
+    .feature-icon {
+      width: 54px;
+      height: 54px;
+      border-radius: 14px;
+      background: var(--primary-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 22px;
+      font-size: 26px;
+    }
+
+    .feature-title {
+      font-size: 20px;
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+
+    .feature-desc {
+      font-size: 14.5px;
+      color: var(--gray);
+      line-height: 1.6;
+    }
+
+    /* How It Works */
+    .how-it-works {
+      background: #F1F5F9;
+      border-radius: 32px;
+      padding: 70px 48px;
+      margin: 40px 0;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      position: relative;
+    }
+
+    .step-card {
+      background: var(--white);
+      padding: 32px 26px;
+      border-radius: 20px;
+      text-align: center;
+      border: 1px solid var(--border);
+      position: relative;
+    }
+
+    .step-number {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 18px;
+      margin: 0 auto 18px auto;
+    }
+
+    .step-title {
+      font-size: 18.5px;
+      margin-bottom: 10px;
+    }
+
+    .step-desc {
+      font-size: 14px;
+      color: var(--gray);
+    }
+
+    /* Pricing Section */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .pricing-card {
+      background: var(--white);
+      border-radius: 22px;
+      padding: 32px 24px;
+      border: 1.5px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .pricing-card:hover {
+      transform: translateY(-5px);
+      box-shadow: var(--shadow-xl);
+    }
+
+    .pricing-card.featured {
+      border: 2px solid var(--primary);
+      box-shadow: 0 10px 30px rgba(79, 70, 229, 0.15);
+      background: linear-gradient(180deg, #FFFFFF 0%, #FAF5FF 100%);
+    }
+
+    .card-ribbon {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 4px 14px;
+      border-radius: 999px;
+      box-shadow: 0 2px 6px rgba(79, 70, 229, 0.4);
+    }
+
+    .plan-title {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .plan-desc {
+      font-size: 13px;
+      color: var(--gray);
+      margin-bottom: 20px;
+      min-height: 38px;
+    }
+
+    .plan-price {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .currency {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--dark);
+    }
+
+    .amount {
+      font-size: 40px;
+      font-weight: 800;
+      color: var(--dark);
+      letter-spacing: -1px;
+    }
+
+    .period {
+      font-size: 13.5px;
+      color: var(--gray);
+      font-weight: 500;
+    }
+
+    .quota-badge {
+      background: var(--primary-light);
+      color: var(--primary);
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 12px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      text-align: center;
+      border: 1px dashed rgba(79, 70, 229, 0.3);
+    }
+
+    .expiry-note {
+      font-size: 12px;
+      color: #DC2626;
+      background: #FEF2F2;
+      padding: 6px 10px;
+      border-radius: 8px;
+      margin-bottom: 18px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .plan-features {
+      list-style: none;
+      margin-bottom: 28px;
+      flex-grow: 1;
+    }
+
+    .plan-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 13.5px;
+      color: #334155;
+      margin-bottom: 10px;
+    }
+
+    .plan-features svg {
+      width: 16px;
+      height: 16px;
+      color: var(--success);
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+
+    .pricing-footer-note {
+      margin-top: 36px;
+      text-align: center;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      font-size: 14.5px;
+      color: var(--gray);
+    }
+
+    .pricing-footer-note strong {
+      color: var(--dark);
+    }
+
+    /* FAQ */
+    .faq-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .faq-card {
+      background: var(--white);
+      padding: 24px 28px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+    }
+
+    .faq-question {
+      font-size: 16.5px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--dark);
+    }
+
+    .faq-answer {
+      font-size: 14px;
+      color: var(--gray);
+      line-height: 1.6;
+    }
+
+    /* CTA Section */
+    .cta-banner {
+      background: linear-gradient(135deg, #1E1B4B, #312E81);
+      border-radius: 28px;
+      padding: 64px 36px;
+      text-align: center;
+      color: white;
+      margin: 60px 0;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(30, 27, 75, 0.35);
+    }
+
+    .cta-banner h2 {
+      color: white;
+      font-size: 40px;
+      margin-bottom: 16px;
+    }
+
+    .cta-banner p {
+      color: #C7D2FE;
+      font-size: 17px;
+      max-width: 600px;
+      margin: 0 auto 32px auto;
+    }
+
+    /* Footer */
+    .footer {
+      background: #0F172A;
+      color: #94A3B8;
+      padding: 60px 0 30px 0;
+      border-top: 1px solid #1E293B;
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 40px;
+    }
+
+    .footer-brand .brand-name {
+      background: linear-gradient(135deg, #818CF8, #38BDF8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+
+    .footer-desc {
+      font-size: 14px;
+      line-height: 1.6;
+      max-width: 320px;
+    }
+
+    .footer-col h4 {
+      color: white;
+      font-size: 16px;
+      margin-bottom: 18px;
+    }
+
+    .footer-links {
+      list-style: none;
+    }
+
+    .footer-links li {
+      margin-bottom: 10px;
+    }
+
+    .footer-links a {
+      color: #94A3B8;
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: white;
+    }
+
+    .footer-bottom {
+      padding-top: 24px;
+      border-top: 1px solid #1E293B;
+      text-align: center;
+      font-size: 13.5px;
+      color: #64748B;
+    }
+
+    /* Responsive */
+    @media (max-width: 992px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+      }
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .steps-grid {
+        grid-template-columns: 1fr;
+      }
+      .pricing-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .footer-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .hero-title {
+        font-size: 38px;
+      }
+      .features-grid, .pricing-grid, .faq-grid {
+        grid-template-columns: 1fr;
+      }
+      .nav-links {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container nav-container">
+      <a href="#" class="brand-logo">
+        <img src="../assets/images/Logo.png" alt="Studieazy Logo" class="logo-img" onerror="this.src='../Logo.png'">
+        <span class="brand-name">Studieazy</span>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#pricing">AI Passes</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <a href="#pricing" class="btn btn-primary">Try AI Quiz Generator</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="hero">
+    <div class="container hero-grid">
+      <div class="hero-content">
+        <div class="hero-tag">
+          <span>✨</span> Smart AI Study Companion for Filipino Students
+        </div>
+        <h1 class="hero-title">
+          Study Smarter, <span>Ace Exams</span> with Ease.
+        </h1>
+        <p class="hero-subtitle">
+          Turn your thickest lecture handouts, slide decks, and reviewer PDFs into interactive multiple-choice quizzes and 3D flashcards in seconds.
+        </p>
+
+        <div class="hero-buttons">
+          <a href="#pricing" class="btn btn-primary" style="padding: 14px 28px; font-size: 16px;">
+            Get Started Free
+          </a>
+          <a href="#how-it-works" class="btn btn-outline" style="padding: 14px 26px; font-size: 16px;">
+            See How It Works
+          </a>
+        </div>
+
+        <div class="hero-trust">
+          <div class="trust-item">
+            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+            100% Free Core Study Modes
+          </div>
+          <div class="trust-item">
+            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+            GCash & Maya Friendly
+          </div>
+          <div class="trust-item">
+            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+            Offline Ready (Hive Cache)
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Interactive Card Mockup -->
+      <div class="card-preview-wrapper">
+        <div class="preview-card">
+          <div class="preview-header">
+            <span class="badge-ai">⚡ Powered by Gemini AI</span>
+            <span style="font-size: 13px; font-weight: 700; color: var(--gray);">Card 4 of 20</span>
+          </div>
+
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill"></div>
+          </div>
+
+          <div class="flashcard-box" onclick="toggleCardAnswer()">
+            <div class="flashcard-type" id="cardModeLabel">ACTIVE RECALL QUESTION</div>
+            <div class="flashcard-q" id="cardContent">
+              "What algorithm structure does Spaced Repetition leverage to optimize memory retention?"
+            </div>
+            <div class="flashcard-hint" id="cardHint">💡 Click card to flip and reveal answer</div>
+          </div>
+
+          <div class="interactive-actions">
+            <button class="btn-action-learn" onclick="markCard(false)">Still Learning 🔄</button>
+            <button class="btn-action-gotit" onclick="markCard(true)">Got It! ✅</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Features Section -->
+  <section class="section" id="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Why Choose Studieazy</span>
+        <h2 class="section-title">Designed for How Filipino Students Actually Study</h2>
+        <p class="section-subtitle">
+          Say goodbye to hours of handwriting reviewers or cramming text walls before exams.
+        </p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🤖</div>
+          <h3 class="feature-title">AI Document-to-Quiz</h3>
+          <p class="feature-desc">
+            Upload PDFs, DOCX, or text summaries from your professor. Google Gemini AI automatically formats ready-to-test quizzes with answers and explanations.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🃏</div>
+          <h3 class="feature-title">3D Flashcard Mode</h3>
+          <p class="feature-desc">
+            Engage with smooth card-flipping animations and gesture swiping. Group cards into "Known" vs "Still Learning" to master challenging concepts.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⏱️</div>
+          <h3 class="feature-title">Timed Exam Mode</h3>
+          <p class="feature-desc">
+            Simulate actual college exams and PRC board tests with real-time timers, multiple choice scoring, and instant percentage breakdowns.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📶</div>
+          <h3 class="feature-title">Offline Ready (Hive)</h3>
+          <p class="feature-desc">
+            Studying in transit or in areas with spotty data? Studieazy caches your saved decks locally so you can review anytime, anywhere.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📈</div>
+          <h3 class="feature-title">Streaks & Analytics</h3>
+          <p class="feature-desc">
+            Track daily study streaks, average quiz scores, and subject mastery levels to stay accountable and watch your progress compound.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🛠️</div>
+          <h3 class="feature-title">Manual Creator Studio</h3>
+          <p class="feature-desc">
+            Prefer crafting your own cards? Our rich quiz editor lets you build custom question sets, flashcard terms, and choice options with 100% free cloud sync.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="section" id="how-it-works" style="padding-top: 0;">
+    <div class="container">
+      <div class="how-it-works">
+        <div class="section-header" style="margin-bottom: 40px;">
+          <span class="section-tag">Fast & Simple</span>
+          <h2 class="section-title">From Handout to Reviewer in 3 Steps</h2>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-number">1</div>
+            <h3 class="step-title">Upload Module</h3>
+            <p class="step-desc">Pick any lecture PDF, DOCX syllabus, or paste text notes directly into the app.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">2</div>
+            <h3 class="step-title">Gemini AI Generates</h3>
+            <p class="step-desc">Our integrated AI reads your document and formulates structured multiple-choice questions & flashcards.</p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-number">3</div>
+            <h3 class="step-title">Study & Retain</h3>
+            <p class="step-desc">Test yourself through timed quizzes or flip cards with spaced repetition to ace exam day!</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing / Passes Section -->
+  <section class="section" id="pricing">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Flexible Student Passes</span>
+        <h2 class="section-title">Priced for the Filipino Student Budget</h2>
+        <p class="section-subtitle">
+          No expensive yearly dollar subscriptions. Core study features are 100% free, and you only buy AI quiz generation passes when you need them.
+        </p>
+      </div>
+
+      <div class="pricing-grid">
+        <!-- Free Tier -->
+        <div class="pricing-card">
+          <h3 class="plan-title">Free Forever</h3>
+          <p class="plan-desc">For independent learners who craft custom reviewers manually.</p>
+          <div class="plan-price">
+            <span class="currency">₱</span>
+            <span class="amount">0</span>
+            <span class="period">/ forever</span>
+          </div>
+
+          <div class="quota-badge" style="background: #F1F5F9; color: #475569; border-color: #CBD5E1;">
+            3 Free AI Trial Scans
+          </div>
+
+          <ul class="plan-features">
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Unlimited manual quiz building</li>
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Full 3D flashcard study mode</li>
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Standard quiz testing & score</li>
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Cloud sync via Firebase</li>
+          </ul>
+
+          <a href="#" class="btn btn-outline" style="width: 100%;">Current Plan</a>
+        </div>
+
+        <!-- Daily Pass -->
+        <div class="pricing-card">
+          <h3 class="plan-title">1-Day AI Pass</h3>
+          <p class="plan-desc">Emergency cramming pass right before a quiz or test.</p>
+          <div class="plan-price">
+            <span class="currency">₱</span>
+            <span class="amount">20</span>
+            <span class="period">/ 1 day</span>
+          </div>
+
+          <div class="quota-badge">
+            Max 20 AI Quizzes
+          </div>
+
+          <div class="expiry-note">
+            ⚠️ <strong>Strict 24-hr Expiry:</strong> Valid for 1 day only. Unused quota expires after 24 hrs. Not full access.
+          </div>
+
+          <ul class="plan-features">
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Up to 20 AI Quiz Generations</li>
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> PDF/DOCX/TXT upload parsing</li>
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Fast GCash / Maya payment</li>
+          </ul>
+
+          <a href="#" class="btn btn-outline" style="width: 100%;">Buy 1-Day Pass</a>
+        </div>
+
+        <!-- Weekly Pass (Featured) -->
+        <div class="pricing-card featured">
+          <div class="card-ribbon">Exam Week Favorite</div>
+          <h3 class="plan-title">7-Day AI Pass</h3>
+          <p class="plan-desc">Perfect coverage for Prelims, Midterms, or Finals week.</p>
+          <div class="plan-price">
+            <span class="currency">₱</span>
+            <span class="amount">100</span>
+            <span class="period">/ 7 days</span>
+          </div>
+
+          <div class="quota-badge">
+            Max 50 AI Quizzes
+          </div>
+
+          <div class="expiry-note">
+            ⚠️ <strong>Strict 7-Day Expiry:</strong> Valid for 7 days. Unused quota expires after 7 days.
+          </div>
+
+          <ul class="plan-features">
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Up to 50 AI Quiz Generations</li>
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> High-speed document processing</li>
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Full offline review downloads</li>
+          </ul>
+
+          <a href="#" class="btn btn-primary" style="width: 100%;">Buy 7-Day Pass</a>
+        </div>
+
+        <!-- Monthly Pass -->
+        <div class="pricing-card">
+          <h3 class="plan-title">1-Month AI Pass</h3>
+          <p class="plan-desc">Best value for heavy semester study or board review.</p>
+          <div class="plan-price">
+            <span class="currency">₱</span>
+            <span class="amount">250</span>
+            <span class="period">/ 30 days</span>
+          </div>
+
+          <div class="quota-badge">
+            Max 250 AI Quizzes
+          </div>
+
+          <div class="expiry-note">
+            ⚠️ <strong>Strict 30-Day Expiry:</strong> Valid for 30 days. Unused quota expires after 1 month.
+          </div>
+
+          <ul class="plan-features">
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Up to 250 AI Quiz Generations</li>
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Priority AI generation queue</li>
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg> Priority support via Admin desk</li>
+          </ul>
+
+          <a href="#" class="btn btn-outline" style="width: 100%;">Buy 1-Month Pass</a>
+        </div>
+      </div>
+
+      <div class="pricing-footer-note">
+        💳 <strong>Easy Local Checkout:</strong> Pay effortlessly with GCash, Maya, ShopeePay, or Mobile Airtime via PayMongo. Manual quiz creation and study modes will <strong>always remain 100% free</strong>.
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="section" id="faq" style="background: #F8FAFC;">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Got Questions?</span>
+        <h2 class="section-title">Frequently Asked Questions</h2>
+      </div>
+
+      <div class="faq-grid">
+        <div class="faq-card">
+          <h4 class="faq-question">Paano gumagana ang 1-Day Pass (₱20)?</h4>
+          <p class="faq-answer">
+            Ang 1-Day Pass ay nagbibigay sa iyo ng karapatang mag-generate ng hanggang <strong>20 quizzes gamit ang AI</strong> sa loob ng 24 oras. <em>Mahalagang tandaan:</em> Kapag natapos ang 24 oras, kahit hindi mo pa naubos ang 20 generations, mae-expire na ito. Hindi ito full-access subscription sa buong app—ito ay access pass lamang para sa AI Quiz Generator.
+          </p>
+        </div>
+
+        <div class="faq-card">
+          <h4 class="faq-question">Libre ba talaga ang manual quiz creation at flashcards?</h4>
+          <p class="faq-answer">
+            <strong>Oo, 100% libre magpakailanman!</strong> Ang manual na paggawa ng quizzes, pagsusulat ng flashcards, pagsusulit, at offline review sa Hive cache ay walang bayad.
+          </p>
+        </div>
+
+        <div class="faq-card">
+          <h4 class="faq-question">Anong mga files ang pwedeng i-upload sa AI Generator?</h4>
+          <p class="faq-answer">
+            Tumatanggap ang Studieazy ng mga PDF reviewer handouts, Word documents (DOCX), at plain text files (TXT), o maaari ka ring mag-type ng paksa direktang sa prompt box.
+          </p>
+        </div>
+
+        <div class="faq-card">
+          <h4 class="faq-question">Pwede ba itong gamitin kahit walang internet?</h4>
+          <p class="faq-answer">
+            Oo! Gamit ang aming <strong>Hive offline cache</strong>, ang lahat ng nai-save mong quizzes at flashcard decks ay maaari mong buksan at gamitin habang bumibiyahe o walang data. (Tanging ang AI generation lamang ang nangangailangan ng koneksyon).
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="container">
+    <div class="cta-banner">
+      <h2>Ready to Ace Your Next Exam?</h2>
+      <p>Join thousands of Filipino learners studying with ease. Upload your first reviewer document and see the magic in seconds.</p>
+      <a href="#pricing" class="btn btn-glow" style="padding: 16px 36px; font-size: 16px; font-weight: 700;">
+        Start Studying with Studieazy
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="brand-name" style="font-size: 22px;">Studieazy</div>
+          <p class="footer-desc">
+            A Smart AI-Powered Study Platform and Flashcard Quiz Generator built for Filipino students and licensure examinees.
+          </p>
+          <p style="font-size: 13px; color: #64748B; margin-top: 14px;">
+            Technopreneurship Project &bull; BSIT-41A2<br>
+            Lead Developer: <strong>Kurt Daryl R. De Mesa</strong><br>
+            Instructor: <strong>Jeremy Lloyd Claveria</strong>
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h4>Product</h4>
+          <ul class="footer-links">
+            <li><a href="#features">AI Quiz Generator</a></li>
+            <li><a href="#features">3D Flashcards</a></li>
+            <li><a href="#features">Offline Review (Hive)</a></li>
+            <li><a href="#pricing">Student Passes</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Study Tools</h4>
+          <ul class="footer-links">
+            <li><a href="#">PRC Board Reviewers</a></li>
+            <li><a href="#">College Midterm Decks</a></li>
+            <li><a href="#">Senior High Review</a></li>
+            <li><a href="#">Civil Service Exam</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Connect</h4>
+          <ul class="footer-links">
+            <li><a href="#">Support Ticket Desk</a></li>
+            <li><a href="#">TikTok (@studieazy)</a></li>
+            <li><a href="#">Facebook Page</a></li>
+            <li><a href="#">Campus Ambassadors</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        &copy; 2026 Studieazy. Built with Flutter, Firebase, & Google Gemini AI. All rights reserved.
+      </div>
+    </div>
+  </footer>
+
+  <!-- Interactive JavaScript for Flashcard Preview in Hero -->
+  <script>
+    let isFlipped = false;
+    const cardData = [
+      {
+        question: "What algorithm structure does Spaced Repetition leverage to optimize memory retention?",
+        answer: "The Ebbinghaus Forgetting Curve — reviewing material at expanding intervals right before memory decay occurs."
+      },
+      {
+        question: "Which Flutter local storage library powers Studieazy's offline capability?",
+        answer: "Hive (hive_flutter) — a lightweight, lightning-fast key-value NoSQL database."
+      },
+      {
+        question: "How does Studieazy formulate practice quizzes from lecture notes?",
+        answer: "Google Gemini Generative AI extracts structured question-answer pairs and multiple choices from uploaded PDFs/DOCX."
+      }
+    ];
+
+    let currentCardIndex = 0;
+
+    function toggleCardAnswer() {
+      isFlipped = !isFlipped;
+      const content = document.getElementById("cardContent");
+      const label = document.getElementById("cardModeLabel");
+      const hint = document.getElementById("cardHint");
+
+      if (isFlipped) {
+        label.innerText = "CORRECT ANSWER / EXPLANATION";
+        label.style.color = "#34D399";
+        content.innerText = cardData[currentCardIndex].answer;
+        hint.innerText = "💡 Click again to flip back to question";
+      } else {
+        label.innerText = "ACTIVE RECALL QUESTION";
+        label.style.color = "#A5B4FC";
+        content.innerText = cardData[currentCardIndex].question;
+        hint.innerText = "💡 Click card to flip and reveal answer";
+      }
+    }
+
+    function markCard(known) {
+      currentCardIndex = (currentCardIndex + 1) % cardData.length;
+      isFlipped = false;
+      const content = document.getElementById("cardContent");
+      const label = document.getElementById("cardModeLabel");
+      const hint = document.getElementById("cardHint");
+
+      label.innerText = "ACTIVE RECALL QUESTION";
+      label.style.color = "#A5B4FC";
+      content.innerText = cardData[currentCardIndex].question;
+      hint.innerText = "💡 Click card to flip and reveal answer";
+    }
+  </script>
+</body>
+</html>

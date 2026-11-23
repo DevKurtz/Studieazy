@@ -28,6 +28,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   Future<void> _fetchMetrics() async {
+    final user = ref.read(currentUserProvider).valueOrNull;
+    if (user == null || !user.isAdmin) {
+      setState(() => _isLoadingMetrics = false);
+      return;
+    }
     setState(() => _isLoadingMetrics = true);
     final m = await AdminService.fetchMetrics();
     if (!mounted) return;

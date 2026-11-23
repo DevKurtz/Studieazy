@@ -1,11 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/quiz_model.dart';
 import '../models/question_model.dart';
+import '../config/supabase_config.dart';
+import 'supabase_quiz_service.dart';
 
 class QuizService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _uuid = const Uuid();
+  final SupabaseQuizService _supabase = SupabaseQuizService();
 
   static const Duration _networkTimeout = Duration(seconds: 12);
 
@@ -27,17 +31,41 @@ class QuizService {
       category: category,
     );
 
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _supabase.saveQuizOnly(quiz);
+        return quiz;
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
     await _firestore.collection('quizzes').doc(quiz.id).set(quiz.toFirestore());
     return quiz;
   }
 
   /// Saves a quiz that was already created locally (preserves the local ID).
   Future<void> saveQuiz(QuizModel quiz) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _supabase.saveQuizOnly(quiz);
+        return;
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
     await _firestore.collection('quizzes').doc(quiz.id).set(quiz.toFirestore());
   }
 
   /// Saves a question that was already created locally and updates quiz metadata.
   Future<void> saveQuestion(QuestionModel question) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _supabase.saveQuestion(question);
+        return;
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
     await _firestore
         .collection('questions')
         .doc(question.id)
@@ -68,6 +96,14 @@ class QuizService {
     QuizModel quiz,
     List<QuestionModel> questions,
   ) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _supabase.saveQuiz(quiz, questions);
+        return;
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
     final batch = _firestore.batch();
     batch.set(_firestore.collection('quizzes').doc(quiz.id), quiz.toFirestore());
     for (final q in questions) {
@@ -100,6 +136,15 @@ class QuizService {
       createdAt: DateTime.now(),
     );
 
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _supabase.saveQuestion(question);
+        return question;
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
+
     await _firestore.collection('questions').doc(question.id).set(question.toFirestore());
 
     final quizDoc = await _firestore.collection('quizzes').doc(quizId).get();
@@ -126,6 +171,16 @@ class QuizService {
     String? description,
     String? category,
   }) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _supabase.updateQuiz(
+          quizId: quizId, title: title, description: description, category: category,
+        );
+        return null;
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
     final doc = await _firestore.collection('quizzes').doc(quizId).get();
     if (!doc.exists || doc.data() == null) return null;
 
@@ -158,6 +213,22 @@ class QuizService {
     String? questionType,
     String? imageUrl,
   }) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        return await _supabase.updateQuestionFields(
+          questionId: questionId,
+          questionText: questionText,
+          options: options,
+          correctAnswerIndex: correctAnswerIndex,
+          isFlashcard: isFlashcard,
+          flashcardBack: flashcardBack,
+          questionType: questionType,
+          imageUrl: imageUrl,
+        );
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
     final doc = await _firestore.collection('questions').doc(questionId).get();
     if (!doc.exists || doc.data() == null) return null;
 
@@ -183,6 +254,14 @@ class QuizService {
 
   // Delete question
   Future<void> deleteQuestion(String questionId) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _supabase.deleteQuestion(questionId);
+        return;
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
     final doc = await _firestore.collection('questions').doc(questionId).get();
     if (!doc.exists || doc.data() == null) return;
 
@@ -202,6 +281,14 @@ class QuizService {
 
   // Delete quiz
   Future<void> deleteQuiz(String quizId) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _supabase.deleteQuiz(quizId);
+        return;
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
     final questionsSnapshot = await _firestore
         .collection('questions')
         .where('quizId', isEqualTo: quizId)
@@ -216,6 +303,23 @@ class QuizService {
 
   // Get user's quizzes from Firestore
   Future<List<QuizModel>> getUserQuizzes(String userId) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final migrationKey = 'supabase_quizzes_migrated_$userId';
+        if (!(prefs.getBool(migrationKey) ?? false)) {
+          try {
+            await _migrateUserQuizzesFromFirestore(userId);
+            await prefs.setBool(migrationKey, true);
+          } catch (_) {
+            // A failed optional migration must not block quiz loading.
+          }
+        }
+        return await _supabase.getUserQuizzes(userId);
+      } catch (_) {
+        // Use Firebase while Supabase is unavailable or rejects this schema.
+      }
+    }
     try {
       final snapshot = await _firestore
           .collection('quizzes')
@@ -254,8 +358,62 @@ class QuizService {
     }
   }
 
+  /// Emits quiz changes as they are committed by other clients.
+  /// Firestore and Supabase subscriptions use the same model contract.
+  Stream<List<QuizModel>> watchUserQuizzes(String userId) async* {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await for (final quizzes in _supabase.watchUserQuizzes(userId)) {
+          yield quizzes;
+        }
+        return;
+      } catch (_) {
+        // Reconnect through Firebase when the Supabase stream fails.
+      }
+    }
+    yield* _firestore
+        .collection('quizzes')
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .limit(200)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => QuizModel.fromFirestore(doc.data()))
+            .toList());
+  }
+
+  Future<void> _migrateUserQuizzesFromFirestore(String userId) async {
+    final snapshot = await _firestore
+        .collection('quizzes')
+        .where('userId', isEqualTo: userId)
+        .limit(200)
+        .get()
+        .timeout(_networkTimeout);
+    for (final doc in snapshot.docs) {
+      final quiz = QuizModel.fromFirestore(doc.data());
+      final questionsSnapshot = await _firestore
+          .collection('questions')
+          .where('quizId', isEqualTo: quiz.id)
+          .limit(450)
+          .get()
+          .timeout(_networkTimeout);
+      final questions = questionsSnapshot.docs
+          .map((q) => QuestionModel.fromFirestore(q.data()))
+          .toList();
+      await _supabase.saveQuiz(quiz, questions);
+    }
+  }
+
   // Get quiz with questions from Firestore
-  Future<(QuizModel?, List<QuestionModel>)> getQuizWithQuestions(String quizId) async {
+  Future<(QuizModel?, List<QuestionModel>)> getQuizWithQuestions(String quizId, {String? userId}) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        if (userId == null) throw StateError('User ID required for Supabase quiz access.');
+        return await _supabase.getQuizWithQuestions(quizId, userId);
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
     final quizDoc = await _firestore
         .collection('quizzes')
         .doc(quizId)
@@ -290,7 +448,16 @@ class QuizService {
   }
 
   // Update quiz statistics after study session
-  Future<void> updateQuizStats(String quizId, int score, int totalQuestions) async {
+  Future<void> updateQuizStats(String quizId, int score, int totalQuestions, {String? userId}) async {
+    if (SupabaseConfig.isConfigured) {
+      try {
+        if (userId == null) throw StateError('User ID required for Supabase quiz access.');
+        await _supabase.updateQuizStats(quizId, score, totalQuestions, userId);
+        return;
+      } catch (_) {
+        // Fall back to the established Firebase persistence path.
+      }
+    }
     final doc = await _firestore.collection('quizzes').doc(quizId).get();
     if (!doc.exists || doc.data() == null) return;
 

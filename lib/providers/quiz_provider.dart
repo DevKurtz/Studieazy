@@ -35,6 +35,11 @@ final userQuizzesProvider =
       userId,
     );
 
+    final remoteSub = ref.watch(quizServiceProvider)
+        .watchUserQuizzes(userId)
+        .listen((quizzes) => notifier.applyRemoteQuizzes(quizzes));
+    ref.onDispose(remoteSub.cancel);
+
     final sub = ref.watch(connectivityServiceProvider).onlineStream.listen((
       online,
     ) {
@@ -68,6 +73,18 @@ class QuizNotifier extends StateNotifier<AsyncValue<List<QuizModel>>> {
   final ConnectivityService _connectivity;
   final String _userId;
   final _uuid = const Uuid();
+
+  Future<void> applyRemoteQuizzes(List<QuizModel> quizzes) async {
+    try {
+      final merged = await _mergeRemoteWithLocal(quizzes);
+      await _localStore.saveQuizzes(_userId, merged);
+      if (!mounted) return;
+      state = AsyncData(merged);
+      unawaited(_prefetchAllQuestions(merged));
+    } catch (_) {
+      // Keep the cached state if a transient stream/cache operation fails.
+    }
+  }
 
   Future<void> loadQuizzes() async {
     final cached = await _localStore.reconcileQuestionCounts(_userId);
@@ -110,7 +127,7 @@ class QuizNotifier extends StateNotifier<AsyncValue<List<QuizModel>>> {
           continue;
         }
 
-        final result = await _quizService.getQuizWithQuestions(quiz.id);
+        final result = await _quizService.getQuizWithQuestions(quiz.id, userId: _userId);
         if (result.$2.isNotEmpty) {
           await _localStore.saveQuestions(quiz.id, result.$2);
         }
@@ -373,7 +390,7 @@ class QuizNotifier extends StateNotifier<AsyncValue<List<QuizModel>>> {
     }
 
     try {
-      final result = await _quizService.getQuizWithQuestions(quizId);
+      final result = await _quizService.getQuizWithQuestions(quizId, userId: _userId);
       if (result.$1 != null) {
         await _localStore.upsertQuiz(_userId, result.$1!);
       }
@@ -398,7 +415,7 @@ class QuizNotifier extends StateNotifier<AsyncValue<List<QuizModel>>> {
     if (!await _connectivity.isOnline) return;
 
     try {
-      final result = await _quizService.getQuizWithQuestions(quizId);
+      final result = await _quizService.getQuizWithQuestions(quizId, userId: _userId);
       if (result.$1 != null) {
         await _localStore.upsertQuiz(_userId, result.$1!);
       }
@@ -445,6 +462,7 @@ class QuizNotifier extends StateNotifier<AsyncValue<List<QuizModel>>> {
         'quizId': quizId,
         'score': score,
         'totalQuestions': totalQuestions,
+        'userId': _userId,
       },
     );
   }

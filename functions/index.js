@@ -88,3 +88,4 @@ exports.resetPasswordWithOtp = onCall({ region: "us-central1" }, async (request)
 
   return { success: true };
 });
+

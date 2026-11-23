@@ -239,6 +239,12 @@ class _CreateQuizScreenState extends ConsumerState<CreateQuizScreen>
       return;
     }
 
+    if (user.isGuest) {
+      setState(() => _isCreating = false);
+      _showGuestSaveNoticeDialog();
+      return;
+    }
+
     try {
       final quiz = await ref
           .read(userQuizzesProvider(user.id).notifier)
@@ -322,12 +328,52 @@ class _CreateQuizScreenState extends ConsumerState<CreateQuizScreen>
     }
   }
 
+  void _showGuestSaveNoticeDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_clock_rounded, color: Color(0xFF6366F1), size: 26),
+            SizedBox(width: 10),
+            Text('Guest Mode Notice', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'You are using a Guest Account. Quizzes created in Guest Mode are not saved to the database.\n\n'
+          'To save your quizzes permanently, track your study streak, and study across devices, please create a free account!',
+          style: TextStyle(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Keep Editing'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/register');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6366F1),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Create Free Account'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF0F121E) : const Color(0xFFF8F8FC);
+    final user = ref.watch(currentUserProvider).valueOrNull;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -335,6 +381,24 @@ class _CreateQuizScreenState extends ConsumerState<CreateQuizScreen>
         child: Column(
           children: [
             _buildHeader(isDark),
+            if (user?.isGuest == true)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Colors.amber.withValues(alpha: 0.15),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 16, color: Colors.amber),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Guest Mode: You can create this quiz, but it will not be saved permanently.',
+                        style: TextStyle(fontSize: 12, color: Colors.amber, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),

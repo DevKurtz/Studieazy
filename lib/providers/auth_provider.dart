@@ -47,7 +47,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
           }
         } else {
           final user = await _restoreUser(fbUser);
-          if (user != null && user.otpVerified) {
+          if (user != null && user.otpVerified && user.profileComplete) {
             state = AsyncData(user);
           }
           // If otpVerified is false, this is a freshly created account
@@ -90,7 +90,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
   Future<UserModel?> _resolveAuthUser(dynamic fbUser) async {
     if (fbUser != null) {
       final user = await _restoreUser(fbUser);
-      if (user != null && user.otpVerified) {
+      if (user != null && user.otpVerified && user.profileComplete) {
         return user;
       }
       return _localUserStore.readActiveUser();
@@ -110,7 +110,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
 
     // Step 1: local cache
     final cachedUser = await _localUserStore.read(uid);
-    if (cachedUser != null && cachedUser.otpVerified) {
+    if (cachedUser != null && cachedUser.otpVerified && cachedUser.profileComplete) {
       // Show cached immediately, then try to refresh from Firestore.
       state = AsyncData(cachedUser);
     }
@@ -119,7 +119,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     try {
       final remoteUser = await _authService.getUserFromFirestore(uid);
       if (remoteUser != null) {
-        if (remoteUser.otpVerified) await _localUserStore.save(remoteUser);
+        if (remoteUser.otpVerified && remoteUser.profileComplete) await _localUserStore.save(remoteUser);
         return remoteUser;
       }
     } catch (_) {
@@ -134,6 +134,10 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     // stays logged in and can use cached quiz data.
     final email = (fbUser.email as String?) ?? '';
     final displayName = (fbUser.displayName as String?) ?? email.split('@').first;
+    final providerData = fbUser.providerData as List<dynamic>;
+    final isGoogleAccount = providerData.any(
+      (provider) => provider.providerId == 'google.com',
+    );
     final minimal = UserModel(
       id: uid,
       email: email,
@@ -143,6 +147,9 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
       // established offline user out; Firestore will correct this once
       // back online.
       otpVerified: true,
+      // A first-time Google session must not bypass the required profile setup
+      // if Firebase's auth event arrives before its app profile is written.
+      profileComplete: !isGoogleAccount,
     );
     // Do NOT save this minimal model — it will be overwritten by Firestore
     // the next time the user goes online.
@@ -223,9 +230,70 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     }
   }
 
+  Future<String?> signInWithGoogle() async {
+    try {
+      final user = await _authService.signInWithGoogle();
+      if (user == null) return null; // User cancelled
+      if (!user.profileComplete) return 'PROFILE_SETUP_REQUIRED';
+      final userWithActivity = user.copyWith(lastActiveAt: DateTime.now());
+      state = AsyncData(userWithActivity);
+      await _localUserStore.save(userWithActivity);
+      _authService.updateLastActive(user.id);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> completeGoogleAccount({
+    required String name,
+    required String password,
+    int? age,
+    String? school,
+    String? gradeLevel,
+  }) async {
+    try {
+      await _authService.completeGoogleAccount(
+        name: name, password: password, age: age, school: school,
+        gradeLevel: gradeLevel,
+      );
+      final fbUser = _authService.currentFirebaseUser;
+      if (fbUser == null) return 'Google session expired. Please sign in again.';
+      final user = await _authService.getUserFromFirestore(fbUser.uid);
+      if (user == null || !user.profileComplete) {
+        return 'Could not save your account details. Please try again.';
+      }
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> linkGoogleToExistingAccount({required String email, required String password}) async {
+    try {
+      final user = await _authService.linkGoogleToPasswordAccount(email: email, password: password);
+      state = AsyncData(user);
+      await _localUserStore.save(user);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Sets the active session to a temporary guest account.
+  void continueAsGuest() {
+    final guest = UserModel.guest();
+    state = AsyncData(guest);
+  }
+
   Future<void> signOut() async {
+    final currentUser = state.valueOrNull;
+    if (currentUser?.isGuest == true) {
+      state = const AsyncData(null);
+      return;
+    }
     final userId =
-        state.valueOrNull?.id ?? _authService.currentFirebaseUser?.uid;
+        currentUser?.id ?? _authService.currentFirebaseUser?.uid;
     // Clear local session first so auth stream null events cannot resurrect it.
     if (userId != null) await _localUserStore.clear(userId);
     await _authService.signOut();

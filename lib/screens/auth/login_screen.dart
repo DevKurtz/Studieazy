@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/responsive_layout.dart';
 import '../../widgets/sweet_alert_dialog.dart';
+import '../../l10n/app_localizations.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -19,6 +20,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   bool _rememberMe = false;
 
@@ -117,6 +119,95 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      final error =
+          await ref.read(currentUserProvider.notifier).signInWithGoogle();
+
+      if (!mounted) return;
+      setState(() => _isGoogleLoading = false);
+
+      if (error != null) {
+        if (error == 'PROFILE_SETUP_REQUIRED') {
+          context.go('/register', extra: true);
+          return;
+        }
+        if (error.contains('Enter its password to connect Google sign-in')) {
+          _googleEmail = ref.read(authServiceProvider).pendingGoogleEmail ?? '';
+          final credentials = await _requestExistingPassword();
+          if (!mounted || credentials == null) return;
+          final linkError = await ref.read(currentUserProvider.notifier)
+              .linkGoogleToExistingAccount(email: credentials.$1, password: credentials.$2);
+          if (!mounted) return;
+          if (linkError == null) {
+            context.go('/');
+          } else {
+            _showResultModal('Account Connection Failed', linkError.replaceAll('Exception: ', ''), false);
+          }
+          return;
+        }
+        _showResultModal(
+          'Google Sign-In Failed',
+          error.replaceAll('Exception: ', ''),
+          false,
+        );
+      } else {
+        _showResultModal(
+          'Welcome to Studieazy!',
+          'You have successfully signed in with Google.',
+          true,
+          onDismiss: () {
+            if (mounted) context.go('/');
+          },
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isGoogleLoading = false);
+      _showResultModal(
+        'Google Sign-In Error',
+        'Could not complete Google Sign-In. Please try again.',
+        false,
+      );
+    }
+  }
+
+  String _googleEmail = '';
+
+  Future<(String, String)?> _requestExistingPassword() async {
+    final emailController = TextEditingController(text: _googleEmail);
+    final controller = TextEditingController();
+    final credentials = await showDialog<(String, String)>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Connect your account'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: emailController, keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Account email')),
+            TextField(controller: controller, obscureText: true,
+              decoration: const InputDecoration(labelText: 'Existing account password')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, (emailController.text.trim(), controller.text)), child: const Text('Connect')),
+        ],
+      ),
+    );
+    emailController.dispose();
+    controller.dispose();
+    return credentials;
+  }
+
+  void _continueAsGuest() {
+    ref.read(currentUserProvider.notifier).continueAsGuest();
+    if (mounted) context.go('/');
+  }
+
   void _showForgotPasswordDialog() {
     final emailCtrl = TextEditingController();
     final newPasswordCtrl = TextEditingController();
@@ -158,6 +249,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
             final isDark = Theme.of(context).brightness == Brightness.dark;
+            final media = MediaQuery.of(ctx);
+            final isCompact = media.size.width < 400;
             final dialogBg = isDark ? const Color(0xFF1F2937) : Colors.white;
             final titleColor = isDark ? Colors.white : const Color(0xFF1A1A2E);
             final bodyColor = isDark ? Colors.grey.shade300 : Colors.grey.shade600;
@@ -174,7 +267,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 child: Dialog(
                   backgroundColor: dialogBg,
                   elevation: 16,
-                  insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                  insetPadding: EdgeInsets.symmetric(
+                    horizontal: isCompact ? 12 : 20,
+                    vertical: 16,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
                     side: BorderSide(
@@ -184,10 +280,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     ),
                   ),
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 440),
+                    constraints: BoxConstraints(
+                      maxWidth: 440,
+                      maxHeight: media.size.height - media.viewInsets.bottom - 32,
+                    ),
                     child: SingleChildScrollView(
                       child: Padding(
-                        padding: const EdgeInsets.all(24),
+                        padding: EdgeInsets.all(isCompact ? 18 : 24),
                         child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -602,6 +701,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           TextFormField(
                             controller: newPasswordCtrl,
                             obscureText: obscureNewPassword,
+                            onChanged: (_) => setDialogState(() {}),
                             style: TextStyle(color: titleColor, fontSize: 14),
                             decoration: InputDecoration(
                               hintText: 'Enter new password',
@@ -647,6 +747,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           TextFormField(
                             controller: confirmPasswordCtrl,
                             obscureText: obscureConfirmPassword,
+                            onChanged: (_) => setDialogState(() {}),
                             style: TextStyle(color: titleColor, fontSize: 14),
                             decoration: InputDecoration(
                               hintText: 'Confirm new password',
@@ -1318,7 +1419,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Email',
+              context.tr('email_label'),
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
@@ -1377,7 +1478,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              'Password',
+              context.tr('password_label'),
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
@@ -1513,8 +1614,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           color: Colors.white,
                         ),
                       )
-                    : const Text(
-                        'Sign In',
+                    : Text(
+                        context.tr('sign_in'),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1522,7 +1623,113 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       ),
               ),
             ),
+            const SizedBox(height: 18),
+
+            // ── OR Divider ──────────────────────────────────────────
+            Row(
+              children: [
+                Expanded(
+                  child: Divider(
+                    color: isDark ? Colors.white12 : Colors.grey.shade300,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Text(
+                    'or continue with',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Divider(
+                    color: isDark ? Colors.white12 : Colors.grey.shade300,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
+
+            // ── Continue with Google ────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton(
+                onPressed:
+                    (_isLoading || _isGoogleLoading) ? null : _signInWithGoogle,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor:
+                      isDark ? const Color(0xFF1E293B) : Colors.white,
+                  foregroundColor:
+                      isDark ? Colors.white : const Color(0xFF1E293B),
+                  side: BorderSide(
+                    color: isDark ? Colors.white24 : Colors.grey.shade300,
+                    width: 1.2,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                child: _isGoogleLoading
+                    ? SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: primaryColor,
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _GoogleIcon(size: 20),
+                          SizedBox(width: 12),
+                          Text(
+                            context.tr('continue_google'),
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // ── Use as Guest ────────────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed:
+                    (_isLoading || _isGoogleLoading) ? null : _continueAsGuest,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor:
+                      isDark ? Colors.grey.shade300 : const Color(0xFF475569),
+                  side: BorderSide(
+                    color: isDark ? Colors.white12 : Colors.grey.shade200,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.person_outline_rounded, size: 20),
+                label: Text(
+                  context.tr('use_as_guest'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             Center(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1660,3 +1867,64 @@ class _FeatureTile extends StatelessWidget {
   }
 }
 
+class _GoogleIcon extends StatelessWidget {
+  final double size;
+  const _GoogleIcon({this.size = 20});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(size, size),
+      painter: _GoogleLogoPainter(),
+    );
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final center = Offset(w / 2, h / 2);
+    final radius = w / 2;
+
+    final rect = Rect.fromCircle(center: center, radius: radius * 0.85);
+    final strokeW = radius * 0.38;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeW;
+
+    // Blue
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(rect, -0.785, 1.57, false, paint);
+
+    // Green
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(rect, 0.785, 1.57, false, paint);
+
+    // Yellow
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(rect, 2.356, 1.57, false, paint);
+
+    // Red
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(rect, 3.927, 1.57, false, paint);
+
+    // Blue horizontal bar
+    final barPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(
+      Rect.fromLTWH(
+        center.dx - radius * 0.05,
+        center.dy - strokeW / 2,
+        radius * 0.95,
+        strokeW,
+      ),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}

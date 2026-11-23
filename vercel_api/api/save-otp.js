@@ -41,12 +41,30 @@ module.exports = async (req, res) => {
 
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins TTL
 
-  // Save hashed OTP to Firestore using Admin SDK (bypasses security rules!)
+  // Check rate limit (60s cooldown per email) & save hashed OTP to Firestore using Admin SDK
   try {
-    await db.collection('otp_codes').doc(docId).set({
+    const docRef = db.collection('otp_codes').doc(docId);
+    const existingDoc = await docRef.get();
+
+    if (existingDoc.exists) {
+      const data = existingDoc.data();
+      if (data.lastSentAt) {
+        const elapsedMs = Date.now() - new Date(data.lastSentAt).getTime();
+        const cooldownMs = 60 * 1000; // 60 seconds
+        if (elapsedMs < cooldownMs) {
+          const secondsLeft = Math.ceil((cooldownMs - elapsedMs) / 1000);
+          return res.status(429).json({
+            error: `Please wait ${secondsLeft} second${secondsLeft > 1 ? 's' : ''} before requesting another code.`,
+          });
+        }
+      }
+    }
+
+    await docRef.set({
       hashedCode: hashedCode,
       email: cleanEmail,
       expiresAt: expiresAt.toISOString(),
+      lastSentAt: new Date().toISOString(),
       attempts: 0,
       createdAt: new Date().toISOString(),
     });

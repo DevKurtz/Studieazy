@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
-import '../config/app_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/supabase_config.dart';
 import '../models/quiz_model.dart';
 import '../models/question_model.dart';
 
@@ -28,7 +27,8 @@ class GeneratedQuestion {
   final int correctAnswerIndex;
   final bool isFlashcard;
   final String? flashcardBack;
-  final String questionType; // 'mcq', 'flashcard', 'identification', 'enumeration'
+  final String
+  questionType; // 'mcq', 'flashcard', 'identification', 'enumeration'
 
   GeneratedQuestion({
     required this.questionText,
@@ -41,44 +41,35 @@ class GeneratedQuestion {
 }
 
 class GeminiService {
-  static String? _cachedApiKey;
+  static const _functionName = 'generate-quiz';
 
-  /// Resolves the active Gemini API key dynamically from Firestore (priority 1) or AppConfig (priority 2).
-  static Future<String> getEffectiveApiKey() async {
-    if (_cachedApiKey != null && _cachedApiKey!.isNotEmpty) {
-      return _cachedApiKey!;
+  Future<GeneratedQuizResult> _generateWithBackend({
+    required List<Map<String, dynamic>> parts,
+    required String prompt,
+  }) async {
+    if (!SupabaseConfig.isConfigured) {
+      throw Exception(
+        'AI quiz generation needs the Supabase connection. Run the app with '
+        'the Supabase publishable key after the generate-quiz function is deployed.',
+      );
     }
 
-    // 1. Fetch dynamically from Firestore system_config/ai (allows remote updates without rebuild)
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('system_config')
-          .doc('ai')
-          .get();
-      if (doc.exists && doc.data() != null) {
-        final remoteKey = (doc.data()!['gemini_api_key'] ??
-                doc.data()!['apiKey'] ??
-                doc.data()!['geminiApiKey']) as String?;
-        if (remoteKey != null && remoteKey.trim().isNotEmpty) {
-          _cachedApiKey = remoteKey.trim();
-          return _cachedApiKey!;
-        }
-      }
-    } catch (_) {}
-
-    // 2. Fallback to AppConfig.geminiApiKey
-    final configKey = AppConfig.geminiApiKey.trim();
-    if (configKey.isNotEmpty &&
-        configKey != 'YOUR_GEMINI_API_KEY' &&
-        configKey != 'GEMINI_API_KEY') {
-      _cachedApiKey = configKey;
-      return configKey;
-    }
-
-    throw Exception(
-      'Missing Gemini API Key!\n\n'
-      'Please add your Gemini API Key in Firestore "system_config/ai" or in lib/config/app_config.dart.',
+    final response = await Supabase.instance.client.functions.invoke(
+      _functionName,
+      body: {
+        'parts': [
+          ...parts,
+          {'text': prompt},
+        ],
+      },
     );
+    final data = response.data;
+    if (data is! Map || data['result'] is! Map) {
+      throw const FormatException(
+        'The AI service returned an invalid response.',
+      );
+    }
+    return _parseResponse(jsonEncode(data['result']));
   }
 
   /// Generate a quiz from multiple files simultaneously.
@@ -103,87 +94,64 @@ class GeminiService {
       );
     }
 
-    final apiKey = await getEffectiveApiKey();
-
-    final prompt = _buildPrompt(questionCount, difficulty, selectedTypes, customInstruction);
-    final List<Part> parts = [];
+    final prompt = _buildPrompt(
+      questionCount,
+      difficulty,
+      selectedTypes,
+      customInstruction,
+    );
+    final List<Map<String, dynamic>> parts = [];
 
     for (var i = 0; i < files.length; i++) {
       final f = files[i];
       final ext = f.fileName.split('.').last.toLowerCase();
       if (ext == 'pdf') {
-        parts.add(DataPart('application/pdf', f.bytes));
+        parts.add({
+          'inlineData': {
+            'mimeType': 'application/pdf',
+            'data': base64Encode(f.bytes),
+          },
+        });
       } else {
         final text = await extractText(f.bytes, ext);
         if (text != null && text.trim().isNotEmpty) {
-          parts.add(TextPart('DOCUMENT ${i + 1} (${f.fileName}):\n$text'));
+          parts.add({'text': 'DOCUMENT ${i + 1} (${f.fileName}):\n$text'});
         }
       }
     }
-    parts.add(TextPart(prompt));
-
-    final modelsToTry = [
-      AppConfig.geminiModel,
-      'gemini-2.5-flash',
-      'gemini-3.6-flash',
-      'gemini-3.7-flash',
-      'gemini-flash-latest',
-      'gemini-2.5-pro',
-      'gemini-pro-latest',
-    ];
-
-    Object? lastError;
-    GenerateContentResponse? response;
-
-    for (final modelName in modelsToTry) {
-      try {
-        final model = GenerativeModel(
-          model: modelName,
-          apiKey: apiKey,
-          generationConfig: GenerationConfig(
-            responseMimeType: 'application/json',
-            temperature: 0.4,
-          ),
-        );
-        final res = await model.generateContent([Content.multi(parts)]);
-        if (res.text != null && res.text!.isNotEmpty) {
-          response = res;
-          break;
-        }
-      } catch (e) {
-        lastError = e;
-      }
-    }
-
-    if (response == null || response.text == null || response.text!.isEmpty) {
-      throw lastError ?? Exception('Gemini returned an empty response. Please try again.');
-    }
-
-    return _parseResponse(response.text!);
+    return _generateWithBackend(parts: parts, prompt: prompt);
   }
 
   // ── Public API ───────────────────────────────────────────────────────────────
 
   /// Extract readable text from file bytes depending on [extension].
   /// Returns null if extraction fails or format is unsupported.
-  Future<String?> extractText(
-    Uint8List bytes,
-    String extension,
-  ) async {
+  Future<String?> extractText(Uint8List bytes, String extension) async {
+    String? extracted;
     switch (extension.toLowerCase()) {
       case 'txt':
-        return utf8.decode(bytes, allowMalformed: true);
+        extracted = utf8.decode(bytes, allowMalformed: true);
+        break;
       case 'docx':
-        return _extractDocxText(bytes);
+        extracted = _extractDocxText(bytes);
+        break;
       case 'pptx':
-        return _extractPptxText(bytes);
+        extracted = _extractPptxText(bytes);
+        break;
       case 'pdf':
-        // PDFs are sent as inline bytes directly to Gemini — return null here.
+        // PDF extraction needs an additional library that is not available in
+        // this offline workspace. Keep PDFs supported by quiz generation only.
+        return null;
+      case 'ppt':
+        // Legacy binary PowerPoint is not a ZIP/XML format. Gemini can read it
+        // for quiz generation, but it cannot be safely converted to text here.
         return null;
       default:
-        return utf8.decode(bytes, allowMalformed: true);
+        return null;
     }
+    return cleanExtractedDocumentText(extracted);
   }
+
 
   /// Generate a quiz from [fileBytes].
   /// [fileName] is used to determine MIME type.
@@ -198,21 +166,26 @@ class GeminiService {
     List<String>? selectedTypes,
     String? customInstruction,
   }) async {
-    final apiKey = await getEffectiveApiKey();
-
     final ext = fileName.split('.').last.toLowerCase();
-    final prompt = _buildPrompt(questionCount, difficulty, selectedTypes, customInstruction);
+    final prompt = _buildPrompt(
+      questionCount,
+      difficulty,
+      selectedTypes,
+      customInstruction,
+    );
 
-    List<Part> parts;
+    List<Map<String, dynamic>> parts;
 
     if (ext == 'pdf') {
-      // Send PDF bytes directly — Gemini understands PDFs natively.
       parts = [
-        DataPart('application/pdf', fileBytes),
-        TextPart(prompt),
+        {
+          'inlineData': {
+            'mimeType': 'application/pdf',
+            'data': base64Encode(fileBytes),
+          },
+        },
       ];
     } else {
-      // For TXT / DOCX / PPTX extract text first.
       final text = await extractText(fileBytes, ext);
       if (text == null || text.trim().isEmpty) {
         throw Exception(
@@ -220,57 +193,21 @@ class GeminiService {
           'Try saving it as a PDF or plain text.',
         );
       }
-      parts = [TextPart('$prompt\n\nDOCUMENT CONTENT:\n$text')];
+      parts = [
+        {'text': 'DOCUMENT CONTENT:\n$text'},
+      ];
     }
-
-    final modelsToTry = [
-      AppConfig.geminiModel,
-      'gemini-2.5-flash',
-      'gemini-3.6-flash',
-      'gemini-3.7-flash',
-      'gemini-flash-latest',
-      'gemini-2.5-pro',
-      'gemini-pro-latest',
-    ];
-
-    Object? lastError;
-    GenerateContentResponse? response;
-
-    for (final modelName in modelsToTry) {
-      try {
-        final model = GenerativeModel(
-          model: modelName,
-          apiKey: apiKey,
-          generationConfig: GenerationConfig(
-            responseMimeType: 'application/json',
-            temperature: 0.4,
-          ),
-        );
-        final res = await model.generateContent([Content.multi(parts)]);
-        if (res.text != null && res.text!.isNotEmpty) {
-          response = res;
-          break;
-        }
-      } catch (e) {
-        lastError = e;
-      }
-    }
-
-    if (response == null || response.text == null || response.text!.isEmpty) {
-      throw lastError ?? Exception('Gemini returned an empty response. Please try again.');
-    }
-
-    final raw = response.text;
-    if (raw == null || raw.isEmpty) {
-      throw Exception('Gemini returned an empty response. Please try again.');
-    }
-
-    return _parseResponse(raw);
+    return _generateWithBackend(parts: parts, prompt: prompt);
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
 
-  String _buildPrompt(int count, String difficulty, List<String>? selectedTypes, String? customInstruction) {
+  String _buildPrompt(
+    int count,
+    String difficulty,
+    List<String>? selectedTypes,
+    String? customInstruction,
+  ) {
     String difficultyRules;
 
     switch (difficulty.toLowerCase()) {
@@ -316,9 +253,10 @@ Follow the above instructions carefully when generating questions.
     }
 
     // Build allowed types section — flashcard is never a standalone type.
-    final allowedTypes = (selectedTypes != null && selectedTypes.isNotEmpty)
-        ? selectedTypes.where((t) => t != 'flashcard').toList()
-        : ['mcq', 'identification', 'enumeration'];
+    final allowedTypes =
+        (selectedTypes != null && selectedTypes.isNotEmpty)
+            ? selectedTypes.where((t) => t != 'flashcard').toList()
+            : ['mcq', 'identification', 'enumeration'];
     final typeDescriptions = {
       'mcq': '"mcq": Multiple choice (4 choices, 1 correct index)',
       'identification': '"identification": Short keyword answer (user types)',
@@ -373,61 +311,66 @@ Return ONLY valid JSON matching this exact schema — no markdown, no conversati
 
   GeneratedQuizResult _parseResponse(String raw) {
     // Strip any accidental markdown fences.
-    final cleaned = raw
-        .replaceAll(RegExp(r'```json\s*'), '')
-        .replaceAll(RegExp(r'```\s*'), '')
-        .trim();
+    final cleaned =
+        raw
+            .replaceAll(RegExp(r'```json\s*'), '')
+            .replaceAll(RegExp(r'```\s*'), '')
+            .trim();
 
     final Map<String, dynamic> json =
         jsonDecode(cleaned) as Map<String, dynamic>;
 
     final rawQuestions = (json['questions'] as List<dynamic>);
-    final questions = rawQuestions.map((q) {
-      final map = q as Map<String, dynamic>;
-      final type = (map['type'] as String?)?.toLowerCase() ?? 'mcq';
+    final questions =
+        rawQuestions.map((q) {
+          final map = q as Map<String, dynamic>;
+          final type = (map['type'] as String?)?.toLowerCase() ?? 'mcq';
 
-      // flashcard type is no longer standalone — treat as identification.
-      if (type == 'flashcard' || type == 'identification') {
-        final ans = (map['answer'] as String?) ?? '';
-        return GeneratedQuestion(
-          questionText: (map['question'] as String?) ?? '',
-          options: [ans],
-          correctAnswerIndex: 0,
-          isFlashcard: false,
-          flashcardBack: ans,
-          questionType: 'identification',
-        );
-      } else if (type == 'enumeration') {
-        final rawItems = map['items'] as List<dynamic>?;
-        final items = rawItems != null
-            ? rawItems.map((e) => e.toString()).toList()
-            : [(map['answer'] as String?) ?? ''];
-        return GeneratedQuestion(
-          questionText: (map['question'] as String?) ?? '',
-          options: items,
-          correctAnswerIndex: 0,
-          isFlashcard: false,
-          flashcardBack: items.join(', '),
-          questionType: 'enumeration',
-        );
-      } else {
-        // mcq — set flashcardBack to the correct option text automatically.
-        final opts = (map['options'] as List<dynamic>?)
-                ?.map((o) => o.toString())
-                .toList() ??
-            ['Option A', 'Option B', 'Option C', 'Option D'];
-        final correctIdx = (map['correct_answer_index'] as int?) ?? 0;
-        final safeIdx = (correctIdx >= 0 && correctIdx < opts.length) ? correctIdx : 0;
-        return GeneratedQuestion(
-          questionText: (map['question'] as String?) ?? '',
-          options: opts,
-          correctAnswerIndex: safeIdx,
-          isFlashcard: false,
-          flashcardBack: opts.isNotEmpty ? opts[safeIdx] : null,
-          questionType: 'mcq',
-        );
-      }
-    }).toList();
+          // flashcard type is no longer standalone — treat as identification.
+          if (type == 'flashcard' || type == 'identification') {
+            final ans = (map['answer'] as String?) ?? '';
+            return GeneratedQuestion(
+              questionText: (map['question'] as String?) ?? '',
+              options: [ans],
+              correctAnswerIndex: 0,
+              isFlashcard: false,
+              flashcardBack: ans,
+              questionType: 'identification',
+            );
+          } else if (type == 'enumeration') {
+            final rawItems = map['items'] as List<dynamic>?;
+            final items =
+                rawItems != null
+                    ? rawItems.map((e) => e.toString()).toList()
+                    : [(map['answer'] as String?) ?? ''];
+            return GeneratedQuestion(
+              questionText: (map['question'] as String?) ?? '',
+              options: items,
+              correctAnswerIndex: 0,
+              isFlashcard: false,
+              flashcardBack: items.join(', '),
+              questionType: 'enumeration',
+            );
+          } else {
+            // mcq — set flashcardBack to the correct option text automatically.
+            final opts =
+                (map['options'] as List<dynamic>?)
+                    ?.map((o) => o.toString())
+                    .toList() ??
+                ['Option A', 'Option B', 'Option C', 'Option D'];
+            final correctIdx = (map['correct_answer_index'] as int?) ?? 0;
+            final safeIdx =
+                (correctIdx >= 0 && correctIdx < opts.length) ? correctIdx : 0;
+            return GeneratedQuestion(
+              questionText: (map['question'] as String?) ?? '',
+              options: opts,
+              correctAnswerIndex: safeIdx,
+              isFlashcard: false,
+              flashcardBack: opts.isNotEmpty ? opts[safeIdx] : null,
+              questionType: 'mcq',
+            );
+          }
+        }).toList();
 
     return GeneratedQuizResult(
       title: json['quiz_title'] as String? ?? 'AI Generated Quiz',
@@ -444,9 +387,23 @@ Return ONLY valid JSON matching this exact schema — no markdown, no conversati
       final wordDoc = archive.findFile('word/document.xml');
       if (wordDoc == null) return '';
       final xml = utf8.decode(wordDoc.content as List<int>);
-      // Extract text between <w:t> tags.
-      final matches = RegExp(r'<w:t[^>]*>(.*?)</w:t>').allMatches(xml);
-      return matches.map((m) => m.group(1) ?? '').join(' ');
+      final paragraphs = RegExp(
+        r'<w:p\b[^>]*>(.*?)</w:p>',
+        dotAll: true,
+      ).allMatches(xml);
+      final text = paragraphs
+          .map((paragraph) {
+            final content = paragraph.group(1) ?? '';
+            final runs =
+                RegExp(
+                  r'<w:t\b[^>]*>(.*?)</w:t>',
+                  dotAll: true,
+                ).allMatches(content).map((run) => run.group(1) ?? '').join();
+            return cleanExtractedDocumentText(runs);
+          })
+          .where((paragraph) => paragraph.isNotEmpty)
+          .join('\n\n');
+      return cleanExtractedDocumentText(text);
     } catch (_) {
       return '';
     }
@@ -460,11 +417,14 @@ Return ONLY valid JSON matching this exact schema — no markdown, no conversati
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
 
-      final slideFiles = archive.files
-          .where((f) =>
-              f.isFile &&
-              RegExp(r'^ppt/slides/slide\d+\.xml$').hasMatch(f.name))
-          .toList();
+      final slideFiles =
+          archive.files
+              .where(
+                (f) =>
+                    f.isFile &&
+                    RegExp(r'^ppt/slides/slide\d+\.xml$').hasMatch(f.name),
+              )
+              .toList();
 
       // Sort numerically (slide2 before slide10, etc.) instead of
       // alphabetically.
@@ -477,16 +437,78 @@ Return ONLY valid JSON matching this exact schema — no markdown, no conversati
       final buffer = StringBuffer();
       for (var i = 0; i < slideFiles.length; i++) {
         final xml = utf8.decode(slideFiles[i].content as List<int>);
-        final matches = RegExp(r'<a:t[^>]*>(.*?)</a:t>').allMatches(xml);
-        final slideText = matches.map((m) => m.group(1) ?? '').join(' ');
+        final paragraphs = RegExp(
+          r'<a:p\b[^>]*>(.*?)</a:p>',
+          dotAll: true,
+        ).allMatches(xml);
+        final paragraphTexts =
+            paragraphs
+                .map((paragraph) {
+                  final content = paragraph.group(1) ?? '';
+                  final runs =
+                      RegExp(r'<a:t\b[^>]*>(.*?)</a:t>', dotAll: true)
+                          .allMatches(content)
+                          .map((run) => run.group(1) ?? '')
+                          .join();
+                  return cleanExtractedDocumentText(runs);
+                })
+                .where((paragraph) => paragraph.isNotEmpty)
+                .toList();
+        final slideText = paragraphTexts.join('\n\n');
         if (slideText.trim().isNotEmpty) {
-          buffer.writeln('Slide ${i + 1}: $slideText');
+          buffer.writeln('Slide ${i + 1}:');
+          buffer.writeln(slideText);
         }
       }
       return buffer.toString();
     } catch (_) {
       return '';
     }
+  }
+
+  /// Word/PPT XML may contain markup that was itself escaped as text.
+  /// Decode entities and strip leaked HTML/XML tags before saving or showing.
+  static String cleanExtractedDocumentText(String value) {
+    var decoded = _decodeDocumentEntities(value);
+    decoded = _decodeDocumentEntities(decoded);
+    final withParagraphBreaks = decoded
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(
+          RegExp(
+            r'</?(?:[a-z][\w.-]*:)?(?:p|div|li|h[1-6])\b[^>]*>',
+            caseSensitive: false,
+          ),
+          '\n',
+        )
+        .replaceAll(RegExp(r'</?[a-z][^>]*>', caseSensitive: false), ' ')
+        .replaceAll('\r', '\n');
+    return withParagraphBreaks
+        .split('\n')
+        .map((line) => line.replaceAll(RegExp(r'[\t ]+'), ' ').trim())
+        .where((line) => line.isNotEmpty)
+        .join('\n\n');
+  }
+
+  static String _decodeDocumentEntities(String value) {
+    var decoded = value
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&apos;', "'")
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&');
+    decoded = decoded.replaceAllMapped(
+      RegExp(r'&#(?:x([0-9a-fA-F]+)|(\d+));'),
+      (match) {
+        final hex = match.group(1);
+        final codePoint = int.tryParse(
+          hex ?? match.group(2)!,
+          radix: hex == null ? 10 : 16,
+        );
+        return codePoint == null ? ' ' : String.fromCharCode(codePoint);
+      },
+    );
+    return decoded;
   }
 
   /// Convert a [GeneratedQuizResult] into domain models ready to save.
@@ -496,21 +518,22 @@ Return ONLY valid JSON matching this exact schema — no markdown, no conversati
     String quizId,
   ) {
     final now = DateTime.now();
-    final questions = result.questions.asMap().entries.map((e) {
-      final GeneratedQuestion q = e.value;
-      final qId = '${quizId}_q${e.key}';
-      return QuestionModel(
-        id: qId,
-        quizId: quizId,
-        questionText: q.questionText,
-        options: q.options,
-        correctAnswerIndex: q.correctAnswerIndex,
-        isFlashcard: q.isFlashcard,
-        flashcardBack: q.flashcardBack,
-        questionType: q.questionType,
-        createdAt: now,
-      );
-    }).toList();
+    final questions =
+        result.questions.asMap().entries.map((e) {
+          final GeneratedQuestion q = e.value;
+          final qId = '${quizId}_q${e.key}';
+          return QuestionModel(
+            id: qId,
+            quizId: quizId,
+            questionText: q.questionText,
+            options: q.options,
+            correctAnswerIndex: q.correctAnswerIndex,
+            isFlashcard: q.isFlashcard,
+            flashcardBack: q.flashcardBack,
+            questionType: q.questionType,
+            createdAt: now,
+          );
+        }).toList();
 
     final quiz = QuizModel(
       id: quizId,

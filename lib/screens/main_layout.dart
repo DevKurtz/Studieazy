@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
+import '../l10n/app_localizations.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/web_navbar.dart';
+import '../widgets/app_install_button.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -24,15 +26,6 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     '/my-quizzes',
     '/study',
     '/profile',
-  ];
-
-  final List<String> _labels = [
-    'Home',
-    'Create',
-    'AI Generator',
-    'My Quizzes',
-    'Study',
-    'Profile',
   ];
 
   final List<IconData> _icons = [
@@ -57,6 +50,14 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
   Widget build(BuildContext context) {
     final currentUserAsync = ref.watch(currentUserProvider);
     final currentUser = currentUserAsync.valueOrNull;
+    final labels = [
+      context.tr('nav_home'),
+      context.tr('nav_create'),
+      context.tr('nav_ai_generator'),
+      context.tr('nav_my_quizzes'),
+      context.tr('nav_study'),
+      context.tr('nav_profile'),
+    ];
     final location = GoRouterState.of(context).matchedLocation;
     final isDesktop = ResponsiveBreakpoints.isDesktop(context);
     
@@ -64,7 +65,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     for (int i = 0; i < _routes.length; i++) {
       if (location == _routes[i] ||
           (i == 0 && location == '/') ||
-          (i == 3 && location.startsWith('/quiz/'))) {
+          (i == 3 && location.startsWith('/quiz/')) ||
+          (i == 4 && location.startsWith('/study'))) {
         _currentIndex = i;
         break;
       }
@@ -79,10 +81,11 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
               elevation: 0,
               backgroundColor: Colors.transparent,
               title: Text(
-                _labels[_currentIndex],
+                labels[_currentIndex],
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               actions: [
+                const AppInstallButton(),
                 // Profile Icon in Top Right
                 GestureDetector(
                   onTap: () => context.push('/profile'),
@@ -216,7 +219,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          _labels[index],
+                          labels[index],
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

@@ -10,6 +10,7 @@ import '../../models/quiz_model.dart';
 import '../../widgets/skeleton_loader.dart';
 import '../../widgets/offline_mode_dialog.dart';
 import '../../widgets/responsive_layout.dart';
+import '../../l10n/app_localizations.dart';
 
 // ── Design Tokens ───────────────────────────────────────────────────────────
 const _kCard    = Color(0xFF1E293B);
@@ -101,9 +102,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           const Icon(Icons.cloud_off_rounded, size: 64, color: _kIndigo),
           const SizedBox(height: 16),
-          Text('Could not load data', style: Theme.of(context).textTheme.titleMedium),
+          Text(context.tr('could_not_load'), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text('Check your internet connection',
+          Text(context.tr('check_internet'),
               style: TextStyle(color: Colors.grey.shade600)),
           if (user != null) ...[
             const SizedBox(height: 20),
@@ -111,12 +112,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               onPressed: () =>
                   ref.read(userQuizzesProvider(user.id).notifier).refreshQuizzes(),
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: Text(context.tr('retry')),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => setState(() => _isOfflineMode = true),
-              child: const Text('Use Offline Mode'),
+              child: Text(context.tr('use_offline')),
             ),
           ],
         ],
@@ -157,7 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         const SizedBox(height: 20),
 
         // Progress Overview
-        const _SectionHeader(title: 'Progress Overview'),
+        _SectionHeader(title: context.tr('progress_overview')),
         const SizedBox(height: 10),
         _ProgressStats(
           streakCount: streakCount,
@@ -176,13 +177,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const _SectionHeader(title: 'Recent Study Decks'),
+              _SectionHeader(title: context.tr('recent_study_decks')),
               MouseRegion(
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
                   onTap: () => context.go('/my-quizzes'),
-                  child: const Text(
-                    'View All →',
+                  child: Text(
+                    '${context.tr('view_all')} →',
                     style: TextStyle(
                       color: _kIndigo,
                       fontWeight: FontWeight.w600,
@@ -212,13 +213,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const _SectionHeader(title: 'Recent Study Decks'),
+              _SectionHeader(title: context.tr('recent_study_decks')),
               MouseRegion(
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
                   onTap: () => context.go('/my-quizzes'),
-                  child: const Text(
-                    'View All →',
+                  child: Text(
+                    '${context.tr('view_all')} →',
                     style: TextStyle(
                       color: _kIndigo,
                       fontWeight: FontWeight.w600,
@@ -258,7 +259,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         const SizedBox(height: 24),
 
         // Continue Learning Journey
-        const _SectionHeader(title: 'Continue Your Learning Journey'),
+        _SectionHeader(title: context.tr('continue_learning')),
         const SizedBox(height: 12),
         _ContinueLearningBanner(isOnline: isOnline),
         const SizedBox(height: 24),
@@ -299,7 +300,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Offline Mode — showing cached data',
+              context.tr('offline_banner'),
               style: TextStyle(
                   color: Colors.orange.shade800,
                   fontSize: 13,
@@ -312,7 +313,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: GestureDetector(
                 onTap: () => setState(() => _isOfflineMode = false),
                 child: Text(
-                  'Go online',
+                  context.tr('go_online'),
                   style: TextStyle(
                     color: Colors.orange.shade900,
                     fontSize: 13,
@@ -358,16 +359,15 @@ class _HeroBanner extends StatelessWidget {
   final dynamic user;
   const _HeroBanner({required this.user});
 
-  String get _greeting {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'Good Morning ☀️';
-    if (h < 17) return 'Good Afternoon 📚';
-    return 'Good Evening 🌙';
-  }
-
   @override
   Widget build(BuildContext context) {
     final firstName = (user?.name ?? 'Student').split(' ').first;
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? context.tr('greeting_morning')
+        : (hour < 17
+            ? context.tr('greeting_afternoon')
+            : context.tr('greeting_evening'));
 
     return Container(
       width: double.infinity,
@@ -434,7 +434,7 @@ class _HeroBanner extends StatelessWidget {
                     border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
                   ),
                   child: Text(
-                    _greeting,
+                    greeting,
                     style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -451,7 +451,7 @@ class _HeroBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Ready to level up your knowledge today?',
+                  context.tr('ready_today'),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.62),
                     fontSize: 13,
@@ -463,7 +463,7 @@ class _HeroBanner extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _HeroActionBtn(
-                        label: '✨  Generate with AI',
+                        label: context.tr('generate_with_ai'),
                         filled: true,
                         onTap: () => context.go('/ai-generator'),
                       ),
@@ -471,7 +471,7 @@ class _HeroBanner extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _HeroActionBtn(
-                        label: '+  Create Deck',
+                        label: context.tr('create_deck'),
                         filled: false,
                         onTap: () => context.go('/create-quiz'),
                       ),
@@ -543,10 +543,10 @@ class _QuickActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final actions = [
-      (icon: Icons.auto_awesome_rounded, label: 'AI Generate', color: _kPurple, route: '/ai-generator'),
-      (icon: Icons.folder_rounded,       label: 'My Quizzes',  color: _kBlue,   route: '/my-quizzes'),
-      (icon: Icons.school_rounded,       label: 'Study Mode',  color: _kGreen,  route: '/study'),
-      (icon: Icons.add_rounded,          label: 'Create Deck', color: _kIndigo, route: '/create-quiz'),
+      (icon: Icons.auto_awesome_rounded, label: context.tr('nav_ai_generator'), color: _kPurple, route: '/ai-generator'),
+      (icon: Icons.folder_rounded,       label: context.tr('nav_my_quizzes'),  color: _kBlue,   route: '/my-quizzes'),
+      (icon: Icons.school_rounded,       label: context.tr('nav_study_mode'),  color: _kGreen,  route: '/study'),
+      (icon: Icons.add_rounded,          label: context.tr('create_deck'), color: _kIndigo, route: '/create-quiz'),
     ];
 
     return SingleChildScrollView(
@@ -652,7 +652,7 @@ class _ProgressStats extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Streak',
+                  context.tr('streak'),
                   style: TextStyle(color: Colors.orange.shade400, fontSize: 11, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
@@ -666,7 +666,7 @@ class _ProgressStats extends StatelessWidget {
                     ),
                     const SizedBox(width: 3),
                     Text(
-                      streakCount == 1 ? 'day' : 'days',
+                      context.tr(streakCount == 1 ? 'day' : 'days'),
                       style: TextStyle(color: Colors.orange.shade400, fontSize: 11),
                     ),
                   ],
@@ -705,7 +705,7 @@ class _ProgressStats extends StatelessWidget {
                   child: const Icon(Icons.folder_rounded, color: _kBlue, size: 18),
                 ),
                 const SizedBox(height: 8),
-                Text('Quizzes',
+                Text(context.tr('quizzes'),
                     style: TextStyle(color: isDark ? Colors.white70 : const Color(0xFF475569), fontSize: 11, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(
@@ -718,7 +718,7 @@ class _ProgressStats extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text('Created', style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
+                Text(context.tr('created'), style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
               ],
             ),
           ),
@@ -740,7 +740,7 @@ class _ProgressStats extends StatelessWidget {
                   child: const Icon(Icons.check_circle_rounded, color: _kGreen, size: 18),
                 ),
                 const SizedBox(height: 8),
-                Text('Questions',
+                Text(context.tr('questions'),
                     style: TextStyle(color: isDark ? Colors.white70 : const Color(0xFF475569), fontSize: 11, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(
@@ -753,7 +753,7 @@ class _ProgressStats extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text('Studied', style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
+                Text(context.tr('studied'), style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
               ],
             ),
           ),
@@ -863,7 +863,7 @@ class _DeckListTile extends StatelessWidget {
                         ],
                         Icon(Icons.help_outline_rounded, size: 12, color: Colors.grey.shade500),
                         const SizedBox(width: 3),
-                        Text('${quiz.questionIds.length} Questions',
+                        Text(context.tr('questions_count', args: {'count': '${quiz.questionIds.length}'}),
                             style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
                       ],
                     ),
@@ -1123,19 +1123,19 @@ class _EmptyDecks extends StatelessWidget {
         children: [
           Icon(Icons.folder_open_rounded, size: 40, color: Colors.grey.shade500),
           const SizedBox(height: 8),
-          Text('No study decks yet',
+          Text(context.tr('no_decks'),
               style: TextStyle(
                   color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text('Create your first deck to get started!',
+          Text(context.tr('create_first_deck'),
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
               textAlign: TextAlign.center),
           const SizedBox(height: 12),
           ElevatedButton.icon(
             onPressed: onTap,
             icon: const Icon(Icons.add, size: 16),
-            label: const Text('Create Quiz'),
+            label: Text(context.tr('create_quiz')),
           ),
         ],
       ),

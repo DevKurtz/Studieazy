@@ -8,6 +8,8 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/quiz_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../providers/locale_provider.dart';
+import '../../l10n/app_localizations.dart';
 import '../../widgets/skeleton_loader.dart';
 import '../../widgets/legal_policy_dialog.dart';
 import '../../widgets/user_guide_dialog.dart';
@@ -113,6 +115,121 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         duration: const Duration(seconds: 2),
         backgroundColor: const Color(0xFF5C4EE8),
       ),
+    );
+  }
+
+  void _showLanguagePicker(bool isDark) {
+    final cardBg = isDark ? const Color(0xFF1A1F38) : Colors.white;
+    final bgColor = isDark ? const Color(0xFF0F121E) : const Color(0xFFF6F7FA);
+    final currentLocale = ref.read(localeProvider);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Drag handle
+                Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Icon(Icons.language_rounded, color: const Color(0xFF6366F1), size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      context.tr('select_language'),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF111827),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.shade200,
+                    ),
+                  ),
+                  child: Column(
+                    children: LocaleNotifier.supportedLanguages.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final lang = entry.value;
+                      final isSelected = lang.code == currentLocale.languageCode;
+                      final isLast = index == LocaleNotifier.supportedLanguages.length - 1;
+
+                      return Column(
+                        children: [
+                          ListTile(
+                            onTap: () {
+                              ref.read(localeProvider.notifier).setLocale(lang.code);
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    AppLocalizations.trOf(lang.code, 'language_updated'),
+                                  ),
+                                  duration: const Duration(seconds: 2),
+                                  backgroundColor: const Color(0xFF5C4EE8),
+                                ),
+                              );
+                            },
+                            leading: Text(lang.flag, style: const TextStyle(fontSize: 24)),
+                            title: Text(
+                              lang.name,
+                              style: TextStyle(
+                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                color: isSelected
+                                    ? const Color(0xFF6366F1)
+                                    : (isDark ? Colors.white : Colors.black87),
+                                fontSize: 15,
+                              ),
+                            ),
+                            subtitle: Text(
+                              lang.nativeName,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.white38 : Colors.grey.shade500,
+                              ),
+                            ),
+                            trailing: isSelected
+                                ? const Icon(Icons.check_circle_rounded, color: Color(0xFF6366F1), size: 22)
+                                : Icon(Icons.circle_outlined, color: isDark ? Colors.white24 : Colors.grey.shade300, size: 22),
+                          ),
+                          if (!isLast)
+                            Divider(
+                              height: 1,
+                              color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
+                              indent: 16,
+                              endIndent: 16,
+                            ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -254,11 +371,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _logout() async {
+    final user = ref.read(currentUserProvider).valueOrNull;
+    final isGuest = user?.isGuest == true;
+    final guestQuizzes = isGuest && user != null
+        ? ref.read(userQuizzesProvider(user.id)).valueOrNull ?? const []
+        : const [];
+
     final confirmed = await SweetAlert.showConfirm(
       context,
-      title: 'Log Out',
-      subtitle: 'Are you sure you want to log out of your Studieazy account?',
-      confirmButtonText: 'Log Out',
+      title: isGuest ? 'Exit Guest Mode' : 'Log Out',
+      subtitle: isGuest
+          ? guestQuizzes.isEmpty
+              ? 'Are you sure you want to exit Guest Mode? Any quizzes you create are only associated with this guest session and will not transfer to a registered account.'
+              : 'You have created ${guestQuizzes.length} ${guestQuizzes.length == 1 ? 'quiz' : 'quizzes'} in Guest Mode. They are not linked to an account and will not transfer if you exit. Are you sure you want to continue?'
+          : 'Are you sure you want to log out of your Studieazy account?',
+      confirmButtonText: isGuest ? 'Exit' : 'Log Out',
       cancelButtonText: 'Cancel',
       confirmButtonColor: Colors.redAccent,
     );
@@ -365,6 +492,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildSubView(dynamic user, int totalQuizzes, int totalSessions, int avgScore, bool isDark) {
+    if (user.isGuest &&
+        _currentView != ProfileSubView.main &&
+        _currentView != ProfileSubView.helpSupport) {
+      _currentView = ProfileSubView.main;
+    }
     switch (_currentView) {
       case ProfileSubView.main:
         return _buildMainProfile(user, totalQuizzes, totalSessions, avgScore, isDark);
@@ -406,11 +538,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   color: titleColor,
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                color: isDark ? Colors.white70 : Colors.black87,
-                onPressed: () => setState(() => _currentView = ProfileSubView.appSettings),
-              ),
+              if (!user.isGuest)
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined),
+                  color: isDark ? Colors.white70 : Colors.black87,
+                  onPressed: () => setState(() => _currentView = ProfileSubView.appSettings),
+                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -505,35 +638,92 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
           const SizedBox(height: 20),
 
+          if (user.isGuest)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      color: Color(0xFF6366F1)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Guest Account',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Sign up to unlock AI generation, save quizzes, and track study streaks.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () => context.push('/register'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6366F1),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Sign Up',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+
           // Menu Tiles List
-          _menuTile(
-            icon: Icons.person_outline_rounded,
-            title: 'Personal Details',
-            subtitle: 'Update your personal information',
-            onTap: () => setState(() => _currentView = ProfileSubView.personalDetails),
-            isDark: isDark,
-          ),
-          _menuTile(
-            icon: Icons.settings_outlined,
-            title: 'App Settings',
-            subtitle: 'Customize your app experience',
-            onTap: () => setState(() => _currentView = ProfileSubView.appSettings),
-            isDark: isDark,
-          ),
-          _menuTile(
-            icon: Icons.tune_rounded,
-            title: 'Study Preferences',
-            subtitle: 'Set study and quiz preferences',
-            onTap: () => setState(() => _currentView = ProfileSubView.studyPreferences),
-            isDark: isDark,
-          ),
-          _menuTile(
-            icon: Icons.shield_outlined,
-            title: 'Account & Security',
-            subtitle: 'Manage your account and security',
-            onTap: () => setState(() => _currentView = ProfileSubView.accountSecurity),
-            isDark: isDark,
-          ),
+          if (!user.isGuest) ...[
+            _menuTile(
+              icon: Icons.person_outline_rounded,
+              title: 'Personal Details',
+              subtitle: 'Update your personal information',
+              onTap: () => setState(() => _currentView = ProfileSubView.personalDetails),
+              isDark: isDark,
+            ),
+            _menuTile(
+              icon: Icons.settings_outlined,
+              title: 'App Settings',
+              subtitle: 'Customize your app experience',
+              onTap: () => setState(() => _currentView = ProfileSubView.appSettings),
+              isDark: isDark,
+            ),
+            _menuTile(
+              icon: Icons.tune_rounded,
+              title: 'Study Preferences',
+              subtitle: 'Set study and quiz preferences',
+              onTap: () => setState(() => _currentView = ProfileSubView.studyPreferences),
+              isDark: isDark,
+            ),
+            _menuTile(
+              icon: Icons.shield_outlined,
+              title: 'Account & Security',
+              subtitle: 'Manage your account and security',
+              onTap: () => setState(() => _currentView = ProfileSubView.accountSecurity),
+              isDark: isDark,
+            ),
+          ],
           if (user.isAdmin)
             _adminMenuTile(
               icon: Icons.admin_panel_settings_rounded,
@@ -600,9 +790,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
-              label: const Text(
-                'Logout',
-                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+              label: Text(
+                user.isGuest ? 'Exit Guest Mode' : 'Logout',
+                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -625,7 +815,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _subHeader('Personal Details', isDark),
+            _subHeader(context.tr('personal_details'), isDark),
             const SizedBox(height: 16),
 
             // Avatar Header
@@ -688,15 +878,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               child: Column(
                 children: [
-                  _detailField('Full Name', _nameController, Icons.person_outline, isDark),
+                  _detailField(context.tr('full_name'), _nameController, Icons.person_outline, isDark),
                   _divider(isDark),
                   _detailField('Email', TextEditingController(text: user.email), Icons.email_outlined, isDark, readOnly: true),
                   _divider(isDark),
-                  _detailField('Age', _ageController, Icons.calendar_today_outlined, isDark, isNumber: true),
+                  _detailField(context.tr('age'), _ageController, Icons.calendar_today_outlined, isDark, isNumber: true),
                   _divider(isDark),
-                  _detailField('Address', _addressController, Icons.location_on_outlined, isDark),
+                  _detailField(context.tr('address'), _addressController, Icons.location_on_outlined, isDark),
                   _divider(isDark),
-                  _detailField('Bio', _bioController, Icons.info_outline, isDark),
+                  _detailField(context.tr('bio'), _bioController, Icons.info_outline, isDark),
                 ],
               ),
             ),
@@ -713,9 +903,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               child: Column(
                 children: [
-                  _detailField('Phone Number', _phoneController, Icons.phone_outlined, isDark),
+                  _detailField(context.tr('phone'), _phoneController, Icons.phone_outlined, isDark),
                   _divider(isDark),
-                  _detailField('Birthday', _birthdayController, Icons.cake_outlined, isDark),
+                  _detailField(context.tr('birthday'), _birthdayController, Icons.cake_outlined, isDark),
                 ],
               ),
             ),
@@ -735,7 +925,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 child: _isLoading
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    : Text(context.tr('save_changes'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
               ),
             ),
             const SizedBox(height: 20),
@@ -755,10 +945,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _subHeader('App Settings', isDark),
+          _subHeader(context.tr('app_settings'), isDark),
           const SizedBox(height: 16),
 
-          _sectionHeader('Appearance', isDark),
+          _sectionHeader(context.tr('appearance'), isDark),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -772,11 +962,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   builder: (context, ref, child) {
                     final themeMode = ref.watch(themeModeProvider);
                     final modeLabel = themeMode == ThemeMode.dark
-                        ? 'Dark'
-                        : (themeMode == ThemeMode.light ? 'Light' : 'System');
+                        ? context.tr('theme_dark')
+                        : (themeMode == ThemeMode.light ? context.tr('theme_light') : context.tr('theme_system'));
                     return ListTile(
                       leading: const Icon(Icons.dark_mode_outlined, size: 20),
-                      title: const Text('Theme'),
+                      title: Text(context.tr('theme')),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -793,15 +983,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   },
                 ),
                 _divider(isDark),
-                _settingRow('Color Scheme', 'Purple', Icons.palette_outlined, isDark, onTap: () => _comingSoon('Color Scheme')),
+                _settingRow(context.tr('color_scheme'), 'Purple', Icons.palette_outlined, isDark, onTap: () => _comingSoon('Color Scheme')),
                 _divider(isDark),
-                _settingRow('Language', 'English', Icons.language_rounded, isDark, onTap: () => _comingSoon('Language')),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final locale = ref.watch(localeProvider);
+                    final lang = LocaleNotifier.getLanguage(locale.languageCode);
+                    return ListTile(
+                      onTap: () => _showLanguagePicker(isDark),
+                      leading: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFF0EFFF),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.language_rounded, size: 20, color: isDark ? Colors.white70 : const Color(0xFF5C4EE8)),
+                      ),
+                      title: Text(
+                        context.tr('language'),
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87),
+                      ),
+                      subtitle: Text(
+                        '${lang.flag}  ${lang.nativeName}',
+                        style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.grey.shade600),
+                      ),
+                      trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white38 : Colors.grey.shade400, size: 20),
+                    );
+                  },
+                ),
               ],
             ),
           ),
 
           const SizedBox(height: 20),
-          _sectionHeader('General', isDark),
+          _sectionHeader(context.tr('general'), isDark),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -811,17 +1027,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             child: Column(
               children: [
-                _toggleRow('Sound Effects', _soundEffects, Icons.volume_up_outlined, (v) => setState(() => _soundEffects = v), isDark),
+                _toggleRow(context.tr('sound_effects'), _soundEffects, Icons.volume_up_outlined, (v) => setState(() => _soundEffects = v), isDark),
                 _divider(isDark),
-                _toggleRow('Haptic Feedback', _hapticFeedback, Icons.vibration_rounded, (v) => setState(() => _hapticFeedback = v), isDark),
+                _toggleRow(context.tr('haptic_feedback'), _hapticFeedback, Icons.vibration_rounded, (v) => setState(() => _hapticFeedback = v), isDark),
                 _divider(isDark),
-                _toggleRow('Animations', _animations, Icons.animation_rounded, (v) => setState(() => _animations = v), isDark),
+                _toggleRow(context.tr('animations'), _animations, Icons.animation_rounded, (v) => setState(() => _animations = v), isDark),
               ],
             ),
           ),
 
           const SizedBox(height: 20),
-          _sectionHeader('Data & Storage', isDark),
+          _sectionHeader(context.tr('data_storage'), isDark),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -831,19 +1047,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             child: Column(
               children: [
-                _settingRow('Clear Cache', '45.2 MB', Icons.delete_outline_rounded, isDark, onTap: () {
+                _settingRow(context.tr('clear_cache'), '45.2 MB', Icons.delete_outline_rounded, isDark, onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Cache cleared (45.2 MB)')),
                   );
                 }),
                 _divider(isDark),
-                _settingRow('Download Management', '', Icons.download_outlined, isDark, onTap: () => _comingSoon('Download Management')),
+                _settingRow(context.tr('download_management'), '', Icons.download_outlined, isDark, onTap: () => _comingSoon('Download Management')),
               ],
             ),
           ),
 
           const SizedBox(height: 20),
-          _sectionHeader('Other', isDark),
+          _sectionHeader(context.tr('about'), isDark),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -853,9 +1069,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             child: Column(
               children: [
-                _settingRow('Rate Studieazy', '', Icons.star_outline_rounded, isDark, onTap: () => _comingSoon('Rate Studieazy')),
+                _settingRow(context.tr('rate_studieazy'), '', Icons.star_outline_rounded, isDark, onTap: () => _comingSoon('Rate Studieazy')),
                 _divider(isDark),
-                _settingRow('Share Studieazy', '', Icons.share_outlined, isDark, onTap: () => _comingSoon('Share Studieazy')),
+                _settingRow(context.tr('share_studieazy'), '', Icons.share_outlined, isDark, onTap: () => _comingSoon('Share Studieazy')),
               ],
             ),
           ),
@@ -875,12 +1091,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _subHeader('Study Preferences', isDark),
+          _subHeader(context.tr('study_preferences'), isDark),
           const SizedBox(height: 16),
 
-          _sectionHeader('Default Study Mode', isDark),
+          _sectionHeader(context.tr('default_study_mode'), isDark),
           const SizedBox(height: 2),
-          Text('Choose your default mode when starting a quiz', style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.grey.shade600)),
+          Text(context.tr('study_mode_desc'), style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.grey.shade600)),
           const SizedBox(height: 10),
 
           Container(
@@ -891,9 +1107,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             child: Column(
               children: [
-                _modeRadioTile('Flashcards', 'Review using interactive flashcards', Icons.style_rounded, const Color(0xFF7C6FF7), isDark),
+                _modeRadioTile(context.tr('flashcards'), 'Review using interactive flashcards', Icons.style_rounded, const Color(0xFF7C6FF7), isDark),
                 _divider(isDark),
-                _modeRadioTile('Quiz Mode', 'Answer multiple choice questions', Icons.quiz_rounded, const Color(0xFF3B82F6), isDark),
+                _modeRadioTile(context.tr('quiz_mode'), 'Answer multiple choice questions', Icons.quiz_rounded, const Color(0xFF3B82F6), isDark),
                 _divider(isDark),
                 _modeRadioTile('Enumeration', 'List items in the correct order', Icons.format_list_numbered_rounded, const Color(0xFFF97316), isDark),
                 _divider(isDark),
@@ -903,7 +1119,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
 
           const SizedBox(height: 20),
-          _sectionHeader('Quiz Settings', isDark),
+          _sectionHeader(context.tr('quiz_options'), isDark),
           const SizedBox(height: 8),
 
           Container(
@@ -914,23 +1130,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             child: Column(
               children: [
-                _settingRow('Default Question Count', '$_defaultQuestionCount questions', Icons.numbers_rounded, isDark, onTap: () {
+                _settingRow(context.tr('default_question_count'), context.tr('questions_count', args: {'count': '$_defaultQuestionCount'}), Icons.numbers_rounded, isDark, onTap: () {
                   setState(() {
                     _defaultQuestionCount = _defaultQuestionCount == 10 ? 20 : 10;
                   });
                 }),
                 _divider(isDark),
-                _settingRow('Show Explanations', 'After answering', Icons.menu_book_rounded, isDark, onTap: () => _comingSoon('Explanations')),
+                _settingRow(context.tr('show_explanations'), context.tr('after_answering'), Icons.menu_book_rounded, isDark, onTap: () => _comingSoon('Explanations')),
                 _divider(isDark),
-                _toggleRow('Shuffle Questions', _shuffleQuestions, Icons.shuffle_rounded, (v) => setState(() => _shuffleQuestions = v), isDark),
+                _toggleRow(context.tr('shuffle_questions'), _shuffleQuestions, Icons.shuffle_rounded, (v) => setState(() => _shuffleQuestions = v), isDark),
                 _divider(isDark),
-                _toggleRow('Shuffle Options', _shuffleOptions, Icons.swap_vert_rounded, (v) => setState(() => _shuffleOptions = v), isDark),
+                _toggleRow(context.tr('shuffle_options'), _shuffleOptions, Icons.swap_vert_rounded, (v) => setState(() => _shuffleOptions = v), isDark),
               ],
             ),
           ),
 
           const SizedBox(height: 20),
-          _sectionHeader('Learning Reminders', isDark),
+          _sectionHeader(context.tr('study_reminders'), isDark),
           const SizedBox(height: 8),
 
           Container(
@@ -941,9 +1157,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             child: Column(
               children: [
-                _toggleRow('Daily Reminder', _dailyReminder, Icons.alarm_rounded, (v) => setState(() => _dailyReminder = v), isDark),
+                _toggleRow(context.tr('daily_reminder'), _dailyReminder, Icons.alarm_rounded, (v) => setState(() => _dailyReminder = v), isDark),
                 _divider(isDark),
-                _settingRow('Reminder Time', _reminderTime, Icons.access_time_rounded, isDark, onTap: () => _comingSoon('Reminder Time')),
+                _settingRow(context.tr('reminder_time'), _reminderTime, Icons.access_time_rounded, isDark, onTap: () => _comingSoon('Reminder Time')),
               ],
             ),
           ),
@@ -988,10 +1204,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _subHeader('Account & Security', isDark),
+          _subHeader(context.tr('account_security'), isDark),
           const SizedBox(height: 16),
 
-          _sectionHeader('Account', isDark),
+          _sectionHeader(context.tr('account_security'), isDark),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -1007,8 +1223,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 _divider(isDark),
                 ListTile(
                   leading: const Icon(Icons.delete_forever_outlined, color: Colors.redAccent, size: 20),
-                  title: const Text('Delete Account', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Permanently delete your account & data', style: TextStyle(fontSize: 11, color: Colors.redAccent)),
+                  title: Text(context.tr('delete_account'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                  subtitle: Text(context.tr('delete_account_desc'), style: const TextStyle(fontSize: 11, color: Colors.redAccent)),
                   trailing: const Icon(Icons.chevron_right_rounded, color: Colors.redAccent),
                   onTap: _clearAllData,
                 ),
@@ -1017,7 +1233,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
 
           const SizedBox(height: 20),
-          _sectionHeader('Security', isDark),
+          _sectionHeader(context.tr('security_settings'), isDark),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -1051,10 +1267,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _subHeader('Help & Support', isDark),
+          _subHeader(context.tr('help_support'), isDark),
           const SizedBox(height: 16),
 
-          _sectionHeader('Help & Support', isDark),
+          _sectionHeader(context.tr('help_support'), isDark),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -1074,7 +1290,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
 
           const SizedBox(height: 20),
-          _sectionHeader('Resources', isDark),
+          _sectionHeader(context.tr('legal'), isDark),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
@@ -1094,7 +1310,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
 
           const SizedBox(height: 20),
-          _sectionHeader('About', isDark),
+          _sectionHeader(context.tr('about'), isDark),
           const SizedBox(height: 8),
 
           Container(

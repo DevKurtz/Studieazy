@@ -26,6 +26,7 @@ class UserModel {
   /// email during registration. Accounts are not considered fully
   /// authenticated in the app until this is true.
   final bool otpVerified;
+  final bool profileComplete;
 
   // ── Streak fields ────────────────────────────────────────────────────────────
 
@@ -43,14 +44,19 @@ class UserModel {
   /// User access role: 'user' | 'admin' | 'superadmin'
   final String role;
 
+  /// True when user is browsing in temporary guest mode.
+  final bool isGuest;
+
   bool get isAdmin =>
-      role == 'admin' ||
-      role == 'superadmin' ||
-      email.toLowerCase() == 'demesakurtdaryl@gmail.com';
+      !isGuest &&
+      (role == 'admin' ||
+          role == 'superadmin' ||
+          email.toLowerCase() == 'demesakurtdaryl@gmail.com');
 
   bool get isSuperAdmin =>
-      role == 'superadmin' ||
-      email.toLowerCase() == 'demesakurtdaryl@gmail.com';
+      !isGuest &&
+      (role == 'superadmin' ||
+          email.toLowerCase() == 'demesakurtdaryl@gmail.com');
 
   UserModel({
     required this.id,
@@ -67,11 +73,26 @@ class UserModel {
     this.lastSyncedAt,
     this.lastActiveAt,
     this.otpVerified = false,
+    this.profileComplete = true,
     this.streakCount = 0,
     this.lastStreakDate,
     this.pendingStreakSync = false,
     this.role = 'user',
+    this.isGuest = false,
   });
+
+  /// Factory constructor for a temporary Guest user.
+  factory UserModel.guest() {
+    return UserModel(
+      id: 'guest_user',
+      email: 'guest@studieazy.app',
+      name: 'Guest User',
+      createdAt: DateTime.now(),
+      otpVerified: true,
+      isGuest: true,
+      role: 'user',
+    );
+  }
 
   Map<String, dynamic> toFirestore() {
     return {
@@ -89,9 +110,11 @@ class UserModel {
       'lastSyncedAt': lastSyncedAt?.toIso8601String(),
       'lastActiveAt': lastActiveAt?.toIso8601String(),
       'otpVerified': otpVerified,
+      'profileComplete': profileComplete,
       'streakCount': streakCount,
       'lastStreakDate': lastStreakDate,
       'role': role,
+      'isGuest': isGuest,
       // pendingStreakSync is local-only; never written to Firestore
     };
   }
@@ -120,10 +143,12 @@ class UserModel {
       lastSyncedAt: data['lastSyncedAt'] != null ? parseDate(data['lastSyncedAt']) : null,
       lastActiveAt: data['lastActiveAt'] != null ? parseDate(data['lastActiveAt']) : null,
       otpVerified: (data['otpVerified'] as bool?) ?? false,
+      profileComplete: (data['profileComplete'] as bool?) ?? true,
       streakCount: data['streakCount'] is int ? data['streakCount'] as int : int.tryParse(data['streakCount']?.toString() ?? '') ?? 0,
       lastStreakDate: data['lastStreakDate'] as String?,
       pendingStreakSync: false,
       role: (data['role'] as String?) ?? 'user',
+      isGuest: (data['isGuest'] as bool?) ?? false,
     );
   }
 
@@ -142,10 +167,12 @@ class UserModel {
     DateTime? lastSyncedAt,
     DateTime? lastActiveAt,
     bool? otpVerified,
+    bool? profileComplete,
     int? streakCount,
     String? lastStreakDate,
     bool? pendingStreakSync,
     String? role,
+    bool? isGuest,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -162,10 +189,12 @@ class UserModel {
       lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
       lastActiveAt: lastActiveAt ?? this.lastActiveAt,
       otpVerified: otpVerified ?? this.otpVerified,
+      profileComplete: profileComplete ?? this.profileComplete,
       streakCount: streakCount ?? this.streakCount,
       lastStreakDate: lastStreakDate ?? this.lastStreakDate,
       pendingStreakSync: pendingStreakSync ?? this.pendingStreakSync,
       role: role ?? this.role,
+      isGuest: isGuest ?? this.isGuest,
     );
   }
 }

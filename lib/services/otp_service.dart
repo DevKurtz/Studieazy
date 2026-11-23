@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -114,30 +115,28 @@ class OtpService {
   }
 
   /// Generates OTP locally, saves hash to Firestore via Vercel Admin SDK,
-  /// then sends the plain code to user via EmailJS directly from the app.
+  /// then sends it through the same server endpoint. Keeping this operation
+  /// server-side avoids client-side EmailJS/CORS issues and split save/send
+  /// failures that can leave an unsent code under the resend cooldown.
   Future<void> sendForgotPasswordOtp({required String email}) async {
-    // 1. Generate code locally
-    final code = _generateCode();
-
-    // 2. Save hashed OTP to Firestore via Vercel Admin SDK (bypasses security rules)
     try {
-      final saveUri = Uri.parse('https://vercelapi-blue.vercel.app/api/save-otp');
-      final saveResponse = await http.post(
-        saveUri,
+      final response = await http.post(
+        Uri.parse('https://vercelapi-blue.vercel.app/api/send-otp'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email.trim(), 'code': code}),
-      );
-      if (saveResponse.statusCode != 200) {
-        final body = jsonDecode(saveResponse.body) as Map<String, dynamic>;
-        throw body['error'] as String? ?? 'Failed to prepare verification code.';
+        body: jsonEncode({'email': email.trim()}),
+      ).timeout(const Duration(seconds: 20));
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode != 200 || body['success'] != true) {
+        throw body['error'] as String? ?? 'Failed to send verification code.';
       }
     } catch (e) {
       if (e is String) rethrow;
-      throw 'Failed to prepare verification code. Please try again.';
+      if (e is http.ClientException || e is FormatException || e is TimeoutException) {
+        throw 'Could not send the verification email. Please try again.';
+      }
+      throw e.toString().replaceAll('Exception: ', '');
     }
-
-    // 3. Send OTP email via EmailJS with automatic retry & backoff
-    await _sendEmailWithRetry(email: email, code: code);
   }
 
   /// Verifies the entered OTP for Forgot Password flow strictly via Vercel Admin API.

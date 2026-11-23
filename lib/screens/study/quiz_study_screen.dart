@@ -73,9 +73,9 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
     final initialEnumControllers =
         (firstQ != null && firstQ.isEnumeration)
             ? List.generate(
-                firstQ.options.length,
-                (_) => TextEditingController(),
-              )
+              firstQ.options.length,
+              (_) => TextEditingController(),
+            )
             : <TextEditingController>[];
 
     if (mounted) {
@@ -147,11 +147,7 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
                   currentQuestion.options.firstOrNull ??
                   '')
               .trim();
-      final normUser =
-          userText.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '').trim();
-      final normExpected =
-          expected.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '').trim();
-      isCorrect = normUser == normExpected || normExpected.contains(normUser);
+      isCorrect = _evaluateTextAnswer(userText, expected);
     } else if (currentQuestion.isEnumeration) {
       final expectedItems = currentQuestion.options;
       // Per-field evaluation
@@ -159,24 +155,15 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
       int matches = 0;
       for (var i = 0; i < expectedItems.length; i++) {
         final userVal =
-            i < _enumControllers.length
-                ? _enumControllers[i].text.trim().toLowerCase()
-                : '';
-        final normExp =
-            expectedItems[i].trim().toLowerCase().replaceAll(
-              RegExp(r'[^\w\s]'),
-              '',
-            );
-        final normUser = userVal.replaceAll(RegExp(r'[^\w\s]'), '').trim();
+            i < _enumControllers.length ? _enumControllers[i].text.trim() : '';
+        final expItem = expectedItems[i].trim();
         final match =
-            normUser.isNotEmpty &&
-            (normUser == normExp || normExp.contains(normUser));
+            userVal.isNotEmpty && _evaluateTextAnswer(userVal, expItem);
         correctness.add(match);
         if (match) matches++;
       }
       _enumCorrectness = correctness;
-      isCorrect =
-          matches > 0 && matches >= (expectedItems.length / 2).ceil();
+      isCorrect = matches > 0 && matches >= (expectedItems.length / 2).ceil();
     }
 
     setState(() {
@@ -193,12 +180,13 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
     if (_currentIndex < _shuffledQuestions.length - 1) {
       // Rebuild enum controllers for the upcoming question
       final nextQuestion = _shuffledQuestions[_currentIndex + 1];
-      final newControllers = nextQuestion.isEnumeration
-          ? List.generate(
-              nextQuestion.options.length,
-              (_) => TextEditingController(),
-            )
-          : <TextEditingController>[];
+      final newControllers =
+          nextQuestion.isEnumeration
+              ? List.generate(
+                nextQuestion.options.length,
+                (_) => TextEditingController(),
+              )
+              : <TextEditingController>[];
 
       setState(() {
         _currentIndex++;
@@ -207,13 +195,76 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
         _isTextAnswerCorrect = null;
         _textInputController.clear();
         // Dispose old enum controllers, replace with new
-        for (final c in _enumControllers) { c.dispose(); }
+        for (final c in _enumControllers) {
+          c.dispose();
+        }
         _enumControllers = newControllers;
         _enumCorrectness = [];
       });
     } else {
       _showResults();
     }
+  }
+
+  // ── Answer Evaluation Helpers ─────────────────────────────────────────────
+
+  static int _levenshtein(String s, String t) {
+    if (s == t) return 0;
+    if (s.isEmpty) return t.length;
+    if (t.isEmpty) return s.length;
+
+    List<int> v0 = List<int>.generate(t.length + 1, (i) => i);
+    List<int> v1 = List<int>.filled(t.length + 1, 0);
+
+    for (int i = 0; i < s.length; i++) {
+      v1[0] = i + 1;
+      for (int j = 0; j < t.length; j++) {
+        int cost = (s[i] == t[j]) ? 0 : 1;
+        v1[j + 1] = [
+          v1[j] + 1,
+          v0[j + 1] + 1,
+          v0[j] + cost,
+        ].reduce((a, b) => a < b ? a : b);
+      }
+      for (int j = 0; j <= t.length; j++) {
+        v0[j] = v1[j];
+      }
+    }
+    return v1[t.length];
+  }
+
+  static String _normalizeAnswer(String text) {
+    var s = text.trim().toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
+    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (s.startsWith('the ')) s = s.substring(4).trim();
+    if (s.startsWith('a ')) s = s.substring(2).trim();
+    if (s.startsWith('an ')) s = s.substring(3).trim();
+    return s;
+  }
+
+  static bool _evaluateTextAnswer(String userInput, String expectedAnswer) {
+    final normUser = _normalizeAnswer(userInput);
+    if (normUser.isEmpty) return false;
+
+    final candidateAnswers = <String>{};
+    for (final part in expectedAnswer.split(RegExp(r'[/;,]'))) {
+      final n = _normalizeAnswer(part);
+      if (n.isNotEmpty) candidateAnswers.add(n);
+    }
+    // 1. Direct exact normalized match
+    if (candidateAnswers.contains(normUser)) return true;
+
+    // 2. Controlled fuzzy match: strictly require BOTH user and target to be at least 4 characters.
+    // Short inputs (1-3 chars) like "p", "u", "s", "a" must match strictly and will NEVER pass fuzzy match.
+    if (normUser.length >= 4) {
+      for (final cand in candidateAnswers) {
+        if (cand.length >= 4 && _levenshtein(normUser, cand) <= 1) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   Future<void> _showResults() async {
@@ -314,15 +365,15 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
   void _restartQuiz() {
     _autoAdvanceTimer?.cancel();
     // Rebuild enum controllers for the first question
-    final firstQuestion = _shuffledQuestions.isNotEmpty
-        ? _shuffledQuestions[0]
-        : null;
-    final newControllers = (firstQuestion != null && firstQuestion.isEnumeration)
-        ? List.generate(
-            firstQuestion.options.length,
-            (_) => TextEditingController(),
-          )
-        : <TextEditingController>[];
+    final firstQuestion =
+        _shuffledQuestions.isNotEmpty ? _shuffledQuestions[0] : null;
+    final newControllers =
+        (firstQuestion != null && firstQuestion.isEnumeration)
+            ? List.generate(
+              firstQuestion.options.length,
+              (_) => TextEditingController(),
+            )
+            : <TextEditingController>[];
     setState(() {
       _currentIndex = 0;
       _score = 0;
@@ -331,7 +382,9 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
       _isTextAnswerCorrect = null;
       _userAnswers = [];
       _textInputController.clear();
-      for (final c in _enumControllers) { c.dispose(); }
+      for (final c in _enumControllers) {
+        c.dispose();
+      }
       _enumControllers = newControllers;
       _enumCorrectness = [];
       _shuffledQuestions.shuffle();
@@ -383,9 +436,9 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
     final progress = (_currentIndex + 1) / _shuffledQuestions.length;
 
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: const Text('Quiz Mode'),
+        title: const Text('Practice quiz'),
         actions: [
           Center(
             child: Text(
@@ -405,7 +458,9 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
                   color: Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Icon(
@@ -418,140 +473,220 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Progress Bar
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.grey.shade200,
-            minHeight: 6,
-          ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey.shade200,
+              minHeight: 6,
+            ),
 
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Score & Question Type Badge
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 820),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(
-                              Icons.emoji_events,
-                              size: 20,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(width: 8),
                             Text(
-                              'Score: $_score',
+                              'QUESTION ${_currentIndex + 1} OF ${_shuffledQuestions.length}',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
                                 color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              '$_score correct',
+                              style: TextStyle(
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
+                        const SizedBox(height: 18),
+                        // Score & Question Type Badge
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer
+                                    .withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.emoji_events,
+                                    size: 20,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Score: $_score',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.indigo.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                currentQuestion.isIdentification
+                                    ? 'Identification'
+                                    : currentQuestion.isEnumeration
+                                    ? 'Enumeration'
+                                    : 'Multiple Choice',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.indigo,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.indigo.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          currentQuestion.isIdentification
-                              ? 'Identification'
-                              : currentQuestion.isEnumeration
-                                  ? 'Enumeration'
-                                  : 'Multiple Choice',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.indigo,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                  // Question Card
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Theme.of(context).colorScheme.primary,
-                          Theme.of(context).colorScheme.secondary,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (currentQuestion.imageUrl != null && currentQuestion.imageUrl!.isNotEmpty) ...[
-                          AppQuestionImage(
-                            imageUrl: currentQuestion.imageUrl,
-                            height: 200,
-                            width: double.infinity,
-                            fit: BoxFit.contain,
-                            borderRadius: BorderRadius.circular(14),
+                        // Question Card
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(26),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: Theme.of(
+                                context,
+                              ).dividerColor.withValues(alpha: .45),
+                            ),
                           ),
-                          const SizedBox(height: 16),
-                        ],
-                        Text(
-                          currentQuestion.questionText,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (currentQuestion.imageUrl != null &&
+                                  currentQuestion.imageUrl!.isNotEmpty) ...[
+                                AppQuestionImage(
+                                  imageUrl: currentQuestion.imageUrl,
+                                  height: 200,
+                                  width: double.infinity,
+                                  fit: BoxFit.contain,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                              Text(
+                                currentQuestion.questionText,
+                                style: TextStyle(
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  fontSize: 22,
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                        const SizedBox(height: 24),
+
+                        // Options or Text Input based on Question Type
+                        if (currentQuestion.isIdentification ||
+                            currentQuestion.isEnumeration)
+                          _buildTextAnswerInput(currentQuestion)
+                        else
+                          ...currentQuestion.options.asMap().entries.map((
+                            entry,
+                          ) {
+                            final index = entry.key;
+                            final option = entry.value;
+                            return _buildOptionCard(
+                              index,
+                              option,
+                              currentQuestion.correctAnswerIndex,
+                            );
+                          }),
+                        if (_hasAnswered &&
+                            !currentQuestion.isIdentification &&
+                            !currentQuestion.isEnumeration) ...[
+                          const SizedBox(height: 8),
+                          _buildAnswerFeedback(
+                            isDarkMode:
+                                Theme.of(context).brightness == Brightness.dark,
+                            isCorrect:
+                                _selectedAnswer ==
+                                currentQuestion.correctAnswerIndex,
+                            expectedLabel:
+                                _selectedAnswer ==
+                                        currentQuestion.correctAnswerIndex
+                                    ? 'You chose the correct answer.'
+                                    : 'Correct answer: ${currentQuestion.options[currentQuestion.correctAnswerIndex]}',
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-
-                  // Options or Text Input based on Question Type
-                  if (currentQuestion.isIdentification || currentQuestion.isEnumeration)
-                    _buildTextAnswerInput(currentQuestion)
-                  else
-                    ...currentQuestion.options.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final option = entry.value;
-                      return _buildOptionCard(
-                        index,
-                        option,
-                        currentQuestion.correctAnswerIndex,
-                      );
-                    }),
-
-                  const SizedBox(height: 24),
-
-                  // Auto advance notice & Next Button
-                  if (_hasAnswered) ...[
-                    Center(
-                      child: Text(
+                ),
+              ),
+            ),
+            if (_hasAnswered)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(
+                        context,
+                      ).dividerColor.withValues(alpha: .45),
+                    ),
+                  ),
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 800),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
                         'Moving to next question in 3s...',
                         style: TextStyle(
                           fontSize: 12,
@@ -559,35 +694,34 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
                           color: Colors.grey.shade600,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _nextQuestion,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              Theme.of(context).colorScheme.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: Text(
-                          _currentIndex < _shuffledQuestions.length - 1
-                              ? 'Next Question'
-                              : 'See Results',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _nextQuestion,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: Text(
+                            _currentIndex < _shuffledQuestions.length - 1
+                                ? 'Next Question  →'
+                                : 'See Results  →',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ],
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -624,19 +758,29 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
               hintText: 'Type your answer here...',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                borderSide: BorderSide(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.5),
                 ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
+                borderSide: BorderSide(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 2,
+                ),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
             ),
           ),
           const SizedBox(height: 6),
@@ -644,7 +788,9 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
             '• Enter key terms or definition. Text automatically wraps to the next line.',
             style: TextStyle(
               fontSize: 11,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.55),
             ),
           ),
           const SizedBox(height: 16),
@@ -694,7 +840,9 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
         const SizedBox(height: 12),
         ...List.generate(expectedItems.length, (i) {
           // After answering, colour each field border based on correctness
-          Color borderColor = Theme.of(context).colorScheme.outline.withValues(alpha: 0.5);
+          Color borderColor = Theme.of(
+            context,
+          ).colorScheme.outline.withValues(alpha: 0.5);
           if (_hasAnswered && i < _enumCorrectness.length) {
             borderColor = _enumCorrectness[i] ? Colors.green : Colors.red;
           }
@@ -728,18 +876,27 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 2,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    suffixIcon: _hasAnswered && i < _enumCorrectness.length
-                        ? Icon(
-                            _enumCorrectness[i]
-                                ? Icons.check_circle
-                                : Icons.cancel,
-                            color:
-                                _enumCorrectness[i] ? Colors.green : Colors.red,
-                          )
-                        : null,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    suffixIcon:
+                        _hasAnswered && i < _enumCorrectness.length
+                            ? Icon(
+                              _enumCorrectness[i]
+                                  ? Icons.check_circle
+                                  : Icons.cancel,
+                              color:
+                                  _enumCorrectness[i]
+                                      ? Colors.green
+                                      : Colors.red,
+                            )
+                            : null,
                   ),
                 ),
               ],
@@ -768,8 +925,7 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
           _buildAnswerFeedback(
             isDarkMode: isDarkMode,
             isCorrect: _isTextAnswerCorrect ?? false,
-            expectedLabel:
-                'Expected answers: ${expectedItems.join(', ')}',
+            expectedLabel: 'Expected answers: ${expectedItems.join(', ')}',
           ),
         ],
       ],
@@ -785,13 +941,14 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isCorrect
-            ? (isDarkMode
-                ? Colors.green.shade900.withValues(alpha: 0.4)
-                : Colors.green.shade50)
-            : (isDarkMode
-                ? Colors.red.shade900.withValues(alpha: 0.4)
-                : Colors.red.shade50),
+        color:
+            isCorrect
+                ? (isDarkMode
+                    ? Colors.green.shade900.withValues(alpha: 0.4)
+                    : Colors.green.shade50)
+                : (isDarkMode
+                    ? Colors.red.shade900.withValues(alpha: 0.4)
+                    : Colors.red.shade50),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isCorrect ? Colors.green : Colors.red,
@@ -829,7 +986,6 @@ class _QuizStudyScreenState extends ConsumerState<QuizStudyScreen> {
       ),
     );
   }
-
 
   Widget _buildOptionCard(int index, String option, int correctIndex) {
     final isSelected = _selectedAnswer == index;

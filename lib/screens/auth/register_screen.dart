@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/responsive_layout.dart';
 import '../../widgets/legal_policy_dialog.dart';
+import '../../l10n/app_localizations.dart';
 
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -19,7 +20,8 @@ const _kTextGrey = Color(0xFF8E8EA9);
 // ─── Main Widget ─────────────────────────────────────────────────────────────
 
 class RegisterScreen extends ConsumerStatefulWidget {
-  const RegisterScreen({super.key});
+  final bool googleSetup;
+  const RegisterScreen({super.key, this.googleSetup = false});
 
   @override
   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
@@ -84,6 +86,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
     _slideAnim = Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero)
         .animate(CurvedAnimation(parent: _pageAnimController, curve: Curves.easeOut));
     _pageAnimController.forward();
+    if (widget.googleSetup) {
+      final fbUser = ref.read(authServiceProvider).currentFirebaseUser;
+      _emailController.text = fbUser?.email ?? '';
+      _nameController.text = fbUser?.displayName ?? '';
+      _goToStep(2);
+    }
   }
 
   @override
@@ -132,10 +140,32 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
           return;
         }
         FocusScope.of(context).unfocus();
-        _sendOTP();
+        if (widget.googleSetup) {
+          _completeGoogleSetup();
+        } else {
+          _sendOTP();
+        }
       }
       return;
     }
+  }
+
+  Future<void> _completeGoogleSetup() async {
+    setState(() => _isLoading = true);
+    final error = await ref.read(currentUserProvider.notifier).completeGoogleAccount(
+      name: _nameController.text.trim(),
+      password: _passwordController.text,
+      age: int.tryParse(_ageController.text.trim()),
+      school: _schoolController.text.trim().isEmpty ? null : _schoolController.text.trim(),
+      gradeLevel: _selectedGrade,
+    );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (error != null) {
+      _showError(error.replaceAll('Exception: ', ''));
+      return;
+    }
+    _goToStep(5);
   }
 
   void _previousStep() {
@@ -404,11 +434,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                 )
               else
                 const SizedBox(width: 36),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Create Account',
+                  context.tr('create_account_btn'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: _kTextDark,
@@ -485,9 +515,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
           ),
           GestureDetector(
             onTap: () => context.go('/login'),
-            child: const Text(
-              'Sign In',
-              style: TextStyle(
+            child: Text(
+              context.tr('sign_in'),
+              style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: _kPrimary,
@@ -746,11 +776,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Email
-                const Text('Email',
+                Text(context.tr('email_label'),
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kTextDark)),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _emailController,
+                  readOnly: widget.googleSetup,
                   keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(fontSize: 14, color: _kTextDark, fontWeight: FontWeight.w500),
                   decoration: _fieldDecoration('Enter your email', Icons.email_outlined),
@@ -765,7 +796,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                 const SizedBox(height: 16),
 
                 // Password
-                const Text('Password',
+                Text(context.tr('password_label'),
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kTextDark)),
                 const SizedBox(height: 8),
                 TextFormField(

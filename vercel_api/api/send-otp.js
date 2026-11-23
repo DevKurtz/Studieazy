@@ -22,7 +22,7 @@ function getFpDocId(email) {
 }
 
 function generateOtpCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 function sendEmailViaEmailJs(toEmail, otpCode) {
@@ -126,6 +126,13 @@ module.exports = async (req, res) => {
     await sendEmailViaEmailJs(cleanEmail, otpCode);
   } catch (e) {
     console.error('EmailJS send error:', e);
+    // Do not leave a code that was never delivered or block a retry during
+    // the cooldown. The next request can safely generate a fresh code.
+    try {
+      await db.collection('otp_codes').doc(docId).delete();
+    } catch (cleanupError) {
+      console.error('Failed to remove undelivered OTP:', cleanupError);
+    }
     return res.status(500).json({ error: 'Failed to send verification email. Please check your email address.' });
   }
 
